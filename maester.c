@@ -457,10 +457,12 @@ void startTrade (char *realm, Inventory avail_inventory, ReceptionInfo *receptio
                 removeFromTrade(&avail_inventory, &trade, command_args);
                 break;
             case SEND:
+                showText("\nGets here 2\n");
                 buffer_global = malloc(sizeof(char) * (strlen(realm) + strlen(".txt") + 1));
                 strcpy(buffer_global, realm);
                 strcat(buffer_global, ".txt");
 
+                showText("\nGets here\n");
                 tradeFile(trade, buffer_global);
                 
                 sendTrade(trade, realm, buffer_global, &reception);

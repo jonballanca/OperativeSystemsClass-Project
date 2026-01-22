@@ -139,7 +139,7 @@ void printAllianceRequest (char *realm_name) {
 void printOrderRequest (char *realm_name) {
     char *buffer = NULL;
 
-    asprintf(&buffer, RESET "\nOrder request received from %s.\n%s$ ", realm_name, BOLD);
+    asprintf(&buffer, RESET "\n>>> Trade request received from %s.\n%s$ ", realm_name, BOLD);
     write(1, buffer, strlen(buffer));
     free(buffer);
     buffer = NULL;

@@ -216,6 +216,8 @@ void tradeFile (Inventory inventory, char* file_name) {
 
     char* buffer;       //Variable auxiliar para printar por pantalla
 
+    showText("\nGets here 1\n");
+
     fd = open(file_name ,O_WRONLY|O_CREAT|O_TRUNC,  S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
     if (fd < 0) {

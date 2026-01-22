@@ -671,6 +671,7 @@ void handleTradeReception (ReceptionInfo *reception, Maester maester, Protocol p
         if (all_valid) {
             getIpAndPortFromProtocol(protocol.origin, &ip, &port);
             getRealmNameFromIp(&realm_name, ip, port, &maester);
+            printReset("Order processed successfully. Stock updated.\n");
             sendAcceptance(maester, realm_name, "Trade accepted!");
         }
         
