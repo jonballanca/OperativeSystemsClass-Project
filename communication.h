@@ -1,0 +1,130 @@
+/***********************************************
+*
+* @Proposit: 
+* @Autor/s: Jon Ballanca y Alejandro Cortés
+* @Data creacio: 20 / 10 / 2025
+* @Data ultima modificacio: 24 / 10 / 2025
+*
+************************************************/
+
+// Define Guard
+#ifndef COMMUNICATION_H
+#define COMMUNICATION_H
+
+// Librerias propias
+#include "protocols.h"
+#include "printing.h"
+#include "inventory.h"
+//#include "config.h"
+
+#define SENDING_INVENTORY 1
+#define SENDING_SIGIL 2
+#define SENDING_TRADE 3
+
+#define ACCEPTED 1
+#define REJECTED 2
+#define PENDING 3
+
+typedef struct {
+    char *realm_name;
+    int status;
+} Pledge;
+
+typedef struct {
+    Pledge *pledges;
+    int status_count;
+} PledgeStatus;
+
+
+typedef struct {
+    Inventory inventory;
+    char *realm_name;
+} RealmInventory;
+
+typedef struct {
+    RealmInventory *realm_inventories;
+    int num_inventories;
+} RealmsStock;
+
+
+typedef struct {
+    Inventory inventory;
+    PledgeStatus pledge_status;
+    RealmsStock realms_stock;
+
+    pthread_mutex_t pledge_status_mutex;
+
+    char* list_products_rl;         // El nombre del realm cuya lista de productos queremos
+    char* inventory_file_name;
+    char* sigil_file_path;
+    char* trade_file_path;
+
+    int pledge_flag;
+    int pledge_pending;
+    char *pledge_realm_name;
+    struct in_addr pledge_ip;
+    int pledge_port;
+    int response_confirmation;
+    char *pledge_decision;
+
+    int receiving_file;
+
+    int sending_file;      // En 1 cuando es un list products, en 2 cuando es un sigil
+    int send_listproducts;
+    int send_sigil;
+    int send_trade;
+    
+    int communication_filesize;
+    int bytes_sent;
+    int bytes_received;
+    char *realm_name_sending;
+    char *file_received;
+
+    char *list_mdsum;
+
+    int hop_bytes_sent;
+    int hop_total_bytes;
+} ReceptionInfo;
+
+
+void initializeReception (ReceptionInfo *reception, Inventory inventory, char *argument);
+
+int sendProtocol(struct in_addr ip, int port, Protocol protocol);
+
+int sendToRoute (char* destination_name, Protocol protocol, Maester maester);
+
+void addAlliance (char *realm_name, Maester *maester, struct in_addr ip, int port);
+
+int searchRoutePos (char* destination_name, Maester maester);
+
+void sendDisconection (Maester maester);
+
+void addActive (char *realm_name, Maester *maester);
+
+void addInactive (char *realm_name, Maester *maester);
+
+void addPledgeStatus(ReceptionInfo *reception, int status, char* realm_name);
+
+int checkTradeInventory(ReceptionInfo *reception, char *realm_name);
+
+Inventory getRealmInventory(ReceptionInfo *reception, char *realm_name);
+
+void processAllianceResponse (char data[], char** pledge_decision, char** realm_name);
+
+void sendNACK ();
+
+void sendACK ();
+
+int getIfResponseType (Protocol protocol);
+
+int checkDestinationRequest (Protocol protocol, struct sockaddr_in client_addr, Maester *maester, ReceptionInfo **reception);
+
+void getRealmNameFromIp (char **realm_name, struct in_addr ip, int port, Maester *maester);
+
+void getIpAndPortFromRealm (Maester maester, char *realm_name, struct in_addr *ip, int *port);
+
+void prepareSendingFile (int *file_size, int *fd, ReceptionInfo *reception, Maester maester, int sending_type);
+
+void manageReception (ReceptionInfo **reception, Protocol *protocol, Maester *maester, int flag);
+
+#endif

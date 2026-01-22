@@ -1,0 +1,17 @@
+--- Trade File ---
+Item			| Value (Gold)
+----------------------------------------
+Antlered Helm		| 0	
+Warhammer of Bronze	| 10	
+Stormlands Ale Barrel	| 0	
+Ship Timber Plank	| 0	
+Salted Fish Barrel	| 0	
+Wine Cask		| 0	
+Leather Riding Boots	| 0	
+Bronze Helm		| 0	
+Woolen Blanket		| 0	
+Iron Dagger		| 0	
+Grain Sack		| 0	
+----------------------------------------
+Total Entries: 11
+

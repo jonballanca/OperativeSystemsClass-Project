@@ -1,0 +1,10 @@
+TheVale
+/thevale
+3
+192.168.1.3
+8042
+--- ROUTES ---
+DEFAULT 192.168.5.5 9002
+KingsL&anding 192.168.1.5 8043
+Drag&ons&tone 192.168.1.4 8041
+Drif&tmark 192.168.1.6 8044
