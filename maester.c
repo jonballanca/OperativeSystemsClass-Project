@@ -77,7 +77,6 @@ void freeBuffers () {
         command_args = NULL;
     }
 
-
     word_count = 0;
     argument_count = 0;
 }
@@ -414,6 +413,9 @@ void startTrade (char *realm, Inventory avail_inventory, ReceptionInfo *receptio
     //int argument_count = 0;             // Guarda el número de argumentos que contiene el comando de "trade"
     int command_index;                  // El entero que guarda el index que representa el comando de "trade"
     Inventory trade;                    // El inventario auxiliar para hacer el trade
+    Inventory avail_copy;
+
+    avail_copy = initializeAvailableInventoryCopy(avail_inventory);
 
     printing = asprintf(&buffer_global, "Entering trade mode with %s.\n", realm);
     write(1, buffer_global, printing);
@@ -421,9 +423,9 @@ void startTrade (char *realm, Inventory avail_inventory, ReceptionInfo *receptio
     buffer_global = NULL;
 
     // avail_inventory = requestAvailableProducts();
-    showAvailableProducts(avail_inventory);
+    showAvailableProducts(avail_copy);
 
-    trade = createTradeInventory(avail_inventory);
+    trade = createTradeInventory(avail_copy);
 
     //Bucle para leer los comandos y hacer la lógica de ellos
     do {
@@ -437,7 +439,7 @@ void startTrade (char *realm, Inventory avail_inventory, ReceptionInfo *receptio
             word_count = separateCommand(&command_separated, string_read);
             if (command_separated != NULL) {
                 argument_count = separateTradeArgs(&command, &command_args, command_separated, word_count);
-                command_index = getTradeIndex(command, command_args, avail_inventory, trade, argument_count);
+                command_index = getTradeIndex(command, command_args, avail_copy, trade, argument_count);
             } else {
                 emptyStringError();
             }
@@ -451,31 +453,28 @@ void startTrade (char *realm, Inventory avail_inventory, ReceptionInfo *receptio
                 // Hacer nada; No hacer ningun commando. Los errores ya se han controlado
                 break;
             case ADD:
-                addToTrade(&avail_inventory, &trade, command_args);
+                addToTrade(&avail_copy, &trade, command_args);
                 break;
             case REMOVE:
-                removeFromTrade(&avail_inventory, &trade, command_args);
+                removeFromTrade(&avail_copy, &trade, command_args);
                 break;
             case SEND:
-                showText("\nGets here 2\n");
                 buffer_global = malloc(sizeof(char) * (strlen(realm) + strlen(".txt") + 1));
                 strcpy(buffer_global, realm);
                 strcat(buffer_global, ".txt");
 
-                showText("\nGets here\n");
                 tradeFile(trade, buffer_global);
                 
                 sendTrade(trade, realm, buffer_global, &reception);
 
-                freeProducts(&avail_inventory, &trade);
+                freeProducts(&avail_copy, &trade);
                 exit_flag = 1;
 
                 free(buffer_global);
                 buffer_global = NULL;
                 break;
             case CANCEL:
-                // Hay que recuperar
-                freeProducts(&avail_inventory, &trade);
+                freeProducts(&avail_copy, &trade);
                 exit_flag = 1;
                 break;
             default:
@@ -662,7 +661,7 @@ void* sendFiles (void* arg) {
                 file_opened = 1;
             }
             
-            if (reception->bytes_sent < file_size) {
+            if ((reception->bytes_sent < file_size) && file_opened) {
                 remaining_bytes = file_size - reception->bytes_sent;
                 
                 if (DATA_MAX_SIZE <= remaining_bytes) {
@@ -695,10 +694,10 @@ void* sendFiles (void* arg) {
                     
                     close(fd);
                     file_opened = 0;
+                    
                     reception->send_listproducts = 0;
                     reception->send_sigil = 0;
-                    reception->send_trade = 0;
-                    //reception->sending_file = 0;
+                    //reception->send_trade = 0;
                     reception->bytes_sent = 0;
 
                     if (reception->sigil_file_path != NULL) {
@@ -706,10 +705,10 @@ void* sendFiles (void* arg) {
                         reception->sigil_file_path = NULL;
                     }
 
-                    if (reception->trade_file_path != NULL) {
+                    /*if (reception->trade_file_path != NULL) {
                         free(reception->trade_file_path);
                         reception->trade_file_path = NULL;
-                    }
+                    }*/
                 }
             }
         }

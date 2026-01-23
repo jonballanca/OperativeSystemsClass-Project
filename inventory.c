@@ -9,6 +9,22 @@ void printa (int fd, char* sentence) {
     write (fd, sentence, strlen(sentence));
 }
 
+Inventory initializeAvailableInventoryCopy (Inventory avail_inventory) {
+    Inventory avail_copy;
+    int i = 0;
+
+    avail_copy.product_count = avail_inventory.product_count;
+    avail_copy.products = malloc(sizeof(Product) * avail_copy.product_count);
+    
+    for (i = 0; i < avail_inventory.product_count; i++) {
+        strcpy(avail_copy.products[i].name, avail_inventory.products[i].name);
+        avail_copy.products[i].amount = avail_inventory.products[i].amount;
+        avail_copy.products[i].weight = avail_inventory.products[i].weight;
+    }
+
+    return avail_copy;
+}
+
 int readInventoryFile (Inventory* inventory ,char* file_name) {
     int fd = 0;             //Numero del file descriptor del fichero
     int read_bytes = 0;     //Numero de bytes leidos
@@ -60,11 +76,13 @@ int loadInventoryFromData (Inventory* inventory, char* data, int data_length) {
     int bytes_read;
     int result;
     int i;
+    int product_size;
     Product product;
     char* product_bytes;
     
     inventory->product_count = 0;
     bytes_read = 0;
+    product_size = sizeof(Product);
     
     if (data == NULL || data_length <= 0) {
         showText("Error loading inventory from buffer\n");
@@ -72,12 +90,20 @@ int loadInventoryFromData (Inventory* inventory, char* data, int data_length) {
     } else {
         while (bytes_read < data_length) {
             
+            if (bytes_read + product_size > data_length) {
+                break;
+            }
+            
             product_bytes = (char*) &product;
-            for (i = 0; i < (int)sizeof(Product); i++) {
+            for (i = 0; i < product_size; i++) {
                 product_bytes[i] = data[bytes_read + i];
             }
             
-            bytes_read = bytes_read + sizeof(Product);
+            bytes_read = bytes_read + product_size;
+            
+            if (product.name[0] == '\0') {
+                break;
+            }
             
             inventory->product_count++;
             
@@ -110,6 +136,7 @@ int loadTradeFromData(Inventory* inventory, char* data, int data_length) {
     char* line_end;
     char* pipe_pos;
     char product_name[256];
+    int dash_count;
     
     i = 0;
     j = 0;
@@ -118,6 +145,7 @@ int loadTradeFromData(Inventory* inventory, char* data, int data_length) {
     pipe_pos = NULL;
     amount = 0;
     in_product_section = 0;
+    dash_count = 0;
     
     inventory->product_count = 0;
     inventory->products = NULL;
@@ -131,7 +159,12 @@ int loadTradeFromData(Inventory* inventory, char* data, int data_length) {
                 line_end = &data[i];
                 line_length = line_end - line_start;
                 
-                if (line_length > 3 && line_start[0] == '-' && line_start[1] == '-') {
+                dash_count = 0;
+                for (j = 0; j < line_length && line_start[j] == '-'; j++) {
+                    dash_count++;
+                }
+                
+                if (dash_count > 10) {
                     in_product_section = !in_product_section;
                 } else if (in_product_section && line_length > 0) {
                     pipe_pos = NULL;
@@ -215,8 +248,6 @@ void tradeFile (Inventory inventory, char* file_name) {
     int buffer_size;    //Tamaño del buffer
 
     char* buffer;       //Variable auxiliar para printar por pantalla
-
-    showText("\nGets here 1\n");
 
     fd = open(file_name ,O_WRONLY|O_CREAT|O_TRUNC,  S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
@@ -320,6 +351,41 @@ void listProducts(Inventory inventory) {
     write (1, buffer, buffer_size);
     free (buffer);
 
+}
+
+int writeInventoryFile (Inventory inventory, char* file_name) {
+    int fd;                 // Numero del file descriptor del fichero
+    int i;                  // Contador
+    int write_bytes;        // Numero de bytes escritos
+    int result;             // Resultado
+    Product product;        // Producto auxiliar
+
+    fd = open(file_name, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+
+    if (fd < 0) {
+        showText("Error writing inventory file\n");
+        result = ERROR_INVENTORY_FILE;
+    } else {
+        for (i = 0; i < inventory.product_count; i++) {
+            strcpy(product.name, inventory.products[i].name);
+            product.amount = inventory.products[i].amount;
+            product.weight = inventory.products[i].weight;
+
+            write_bytes = write(fd, &product, sizeof(Product));
+
+            if (write_bytes != sizeof(Product)) {
+                showText("Error writing product to inventory file\n");
+                close(fd);
+                result = ERROR_INVENTORY_FILE;
+                return result;
+            }
+        }
+
+        close(fd);
+        result = NO_ERROR;
+    }
+
+    return result;
 }
 
 /***********************************************

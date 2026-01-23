@@ -68,6 +68,8 @@ void printa (int fd, char* sentence);
 
 //------------------------- Public Functions ------------------------------------------
 
+Inventory initializeAvailableInventoryCopy (Inventory avail_inventory);
+
 /***********************************************
 *
 * @Finalitat: Lee el fichero del inventario y guarda los productos en las estructuras necesarias.
@@ -114,6 +116,8 @@ int getProductPositionByName(char *product_name, Inventory inventory);
 *
 ************************************************/
 void listProducts(Inventory inventory);
+
+int writeInventoryFile (Inventory inventory, char* file_name);
 
 /***********************************************
 *

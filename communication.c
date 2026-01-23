@@ -671,8 +671,23 @@ void handleTradeReception (ReceptionInfo *reception, Maester maester, Protocol p
         if (all_valid) {
             getIpAndPortFromProtocol(protocol.origin, &ip, &port);
             getRealmNameFromIp(&realm_name, ip, port, &maester);
+            
+            for (i = 0; i < inventory.product_count; i++) {
+                position = getProductPositionByName(inventory.products[i].name, (*reception).inventory);
+                if (position != -1) {
+                    (*reception).inventory.products[position].amount -= inventory.products[i].amount;
+                }
+            }
+
+            writeInventoryFile((*reception).inventory, (*reception).inventory_file_name);
+
             printReset("Order processed successfully. Stock updated.\n");
             sendAcceptance(maester, realm_name, "Trade accepted!");
+        }
+
+        if (inventory.products != NULL) {
+            free(inventory.products);
+            inventory.products = NULL;
         }
         
         if (inventory.products != NULL) {
@@ -818,6 +833,7 @@ void prepareSendingFile (int *file_size, int *fd, ReceptionInfo *reception, Maes
         getFileSize(reception->sigil_file_path, &file_size_str);
     } else if (sending_type == SENDING_TRADE) {
         *fd = open(reception->trade_file_path, O_RDONLY);
+        showText("Ova here\n");
         getFileSize(reception->trade_file_path, &file_size_str);
     }
     
@@ -985,6 +1001,13 @@ void manageReception (ReceptionInfo **reception, Protocol *protocol, Maester *ma
                 printRejectReason(word);
                 (*reception)->sending_file = 0;
             }
+
+            if ((*reception)->trade_file_path != NULL) {
+                free((*reception)->trade_file_path);
+                (*reception)->trade_file_path = NULL;
+            }
+
+            (*reception)->send_trade = 0;
 
             printBold("$ ");
 
