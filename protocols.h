@@ -108,6 +108,8 @@ void arrayToString(char* protocol_destination, char** destination_name);
 
 void getWordFromProtocol (char *data, int word_pos, char **word);
 
+Protocol stringToProtocol (char *buffer);
+
 /*********************************************** PROTOCOLS ***********************************************/
 
 Protocol comAllianceRequest (Maester maester_orig, char *realm_name, char *sigil_path);
