@@ -61,30 +61,130 @@ void emptyStringError ();
 ************************************************/
 void showAvailableProducts (Inventory inventory);
 
+/***********************************************
+*
+* @Finalitat: Muesta el tipo de protocolo como un string
+* @Parametres:  in: protocol = protocolo que se desea printar
+* @Retorn:  ---
+*
+************************************************/
 void showProtocolAsString (uint8_t protocol);
 
+/***********************************************
+*
+* @Finalitat: Mostrar el mensaje del hop, si es sigil_protocol y es el primero que se recibe, 
+              envia el tipo de hop que esta recibiendo y cuando ya no es el primero, envia el porcentaje enviado.
+              Si no es el sigil_protcol indica el tipo de protocolo que es
+* @Parametres:  in: destination_name = nombre del realm destino
+                in: protocol         = tipo de protocolo
+                in: origin           = 
+                in: error            =
+                in: maester          =   
+                in: bytes_sent       =
+                in: total_bytes      =
+                in: previous_bytes                
+* @Retorn:  ---
+*
+************************************************/
 void showHopMessage(char* destination_name, Protocol protocol, struct sockaddr_in origin, int error, Maester maester, int bytes_sent, int total_bytes, int previous_bytes);
 
+/***********************************************
+*
+* @Finalitat: Mostrar los productos que estan disponibles para tradear
+* @Parametres:  in: inventory = productos que estan disponibles para tradear
+* @Retorn:  ---
+*
+************************************************/
 void showInitializedMaester ();
 
+/***********************************************
+*
+* @Finalitat: Mostrar los productos que estan disponibles para tradear
+* @Parametres:  in: inventory = productos que estan disponibles para tradear
+* @Retorn:  ---
+*
+************************************************/
 void printAllianceRequest (char *realm_name);
 
+/***********************************************
+*
+* @Finalitat: Mostrar los productos que estan disponibles para tradear
+* @Parametres:  in: inventory = productos que estan disponibles para tradear
+* @Retorn:  ---
+*
+************************************************/
 void printOrderRequest (char *realm_name);
 
+/***********************************************
+*
+* @Finalitat: Mostrar los productos que estan disponibles para tradear
+* @Parametres:  in: inventory = productos que estan disponibles para tradear
+* @Retorn:  ---
+*
+************************************************/
 void printSuccessfulAlliance (char *realm_name);
 
+/***********************************************
+*
+* @Finalitat: Mostrar los productos que estan disponibles para tradear
+* @Parametres:  in: inventory = productos que estan disponibles para tradear
+* @Retorn:  ---
+*
+************************************************/
 void printFailedAlliance (char *realm_name);
 
+/***********************************************
+*
+* @Finalitat: Mostrar los productos que estan disponibles para tradear
+* @Parametres:  in: inventory = productos que estan disponibles para tradear
+* @Retorn:  ---
+*
+************************************************/
 void printReset (char *text);
 
+/***********************************************
+*
+* @Finalitat: Mostrar los productos que estan disponibles para tradear
+* @Parametres:  in: inventory = productos que estan disponibles para tradear
+* @Retorn:  ---
+*
+************************************************/
 void printBold (char *text);
 
+/***********************************************
+*
+* @Finalitat: Mostrar los productos que estan disponibles para tradear
+* @Parametres:  in: inventory = productos que estan disponibles para tradear
+* @Retorn:  ---
+*
+************************************************/
 void printDisconnection (char *realm_name);
 
+/***********************************************
+*
+* @Finalitat: Mostrar los productos que estan disponibles para tradear
+* @Parametres:  in: inventory = productos que estan disponibles para tradear
+* @Retorn:  ---
+*
+************************************************/
 void printIpAddress (struct in_addr ip);
 
+/***********************************************
+*
+* @Finalitat: Mostrar los productos que estan disponibles para tradear
+* @Parametres:  in: inventory = productos que estan disponibles para tradear
+* @Retorn:  ---
+*
+************************************************/
 void printRejectReason (char *reason);
 
+/***********************************************
+*
+* @Finalitat: Mostrar los productos que estan disponibles para tradear
+* @Parametres:  in: inventory = productos que estan disponibles para tradear
+* @Retorn:  ---
+*
+************************************************/
 void printListProductsRequest (char *realm_name);
 
 #endif

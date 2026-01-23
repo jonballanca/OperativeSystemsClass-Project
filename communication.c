@@ -25,8 +25,9 @@ void initializeReception (ReceptionInfo *reception, Inventory inventory, char *a
     reception->pledge_status.status_count = 0;
     reception->pledge_status.pledges = NULL;
 
-    reception->realms_stock.num_inventories = 0;
-    reception->realms_stock.realm_inventories = NULL;
+    reception->realms_stock.inventory.product_count = 0;
+    reception->realms_stock.inventory.products = NULL;
+    reception->realms_stock.realm_name = NULL;
 
     reception->response_confirmation = 0;
     reception->pledge_decision = NULL;
@@ -262,62 +263,24 @@ void addInactive (char *realm_name, Maester *maester) {
 }
 
 void addRealmInventory(ReceptionInfo *reception, Inventory inventory, char *realm_name) {
-    int i = 0;
     int j = 0;
-    int found = 0;
-    char *upper_case1 = NULL;
-    char *upper_case2 = NULL;
     
-    for (i = 0; i < reception->realms_stock.num_inventories; i++) {
-        upper_case1 = malloc(sizeof(char) * (strlen(reception->realms_stock.realm_inventories[i].realm_name) + 1));
-        upper_case2 = malloc(sizeof(char) * (strlen(realm_name) + 1));
-        
-        strcpy(upper_case1, reception->realms_stock.realm_inventories[i].realm_name);
-        strcpy(upper_case2, realm_name);
-        
-        convertToCapitalLetters(upper_case1);
-        convertToCapitalLetters(upper_case2);
-        
-        if (!strcmp(upper_case1, upper_case2)) {
-            if (reception->realms_stock.realm_inventories[i].inventory.products != NULL) {
-                free(reception->realms_stock.realm_inventories[i].inventory.products);
-            }
-            
-            reception->realms_stock.realm_inventories[i].inventory.product_count = inventory.product_count;
-            reception->realms_stock.realm_inventories[i].inventory.products = malloc(sizeof(Product) * inventory.product_count);
-            
-            for (j = 0; j < inventory.product_count; j++) {
-                reception->realms_stock.realm_inventories[i].inventory.products[j] = inventory.products[j];
-            }
-            
-            found = 1;
-        }
-        
-        free(upper_case1);
-        free(upper_case2);
-        
-        if (found) {
-            break;
-        }
+    if (reception->realms_stock.inventory.products != NULL) {
+        free(reception->realms_stock.inventory.products);
     }
     
-    if (!found) {
-        reception->realms_stock.realm_inventories = realloc(
-            reception->realms_stock.realm_inventories, 
-            sizeof(RealmInventory) * (reception->realms_stock.num_inventories + 1)
-        );
-        
-        reception->realms_stock.realm_inventories[reception->realms_stock.num_inventories].realm_name = malloc(sizeof(char) * (strlen(realm_name) + 1));
-        strcpy(reception->realms_stock.realm_inventories[reception->realms_stock.num_inventories].realm_name, realm_name);
-        
-        reception->realms_stock.realm_inventories[reception->realms_stock.num_inventories].inventory.product_count = inventory.product_count;
-        reception->realms_stock.realm_inventories[reception->realms_stock.num_inventories].inventory.products = malloc(sizeof(Product) * inventory.product_count);
-        
-        for (j = 0; j < inventory.product_count; j++) {
-            reception->realms_stock.realm_inventories[reception->realms_stock.num_inventories].inventory.products[j] = inventory.products[j];
-        }
-        
-        reception->realms_stock.num_inventories++;
+    if (reception->realms_stock.realm_name != NULL) {
+        free(reception->realms_stock.realm_name);
+    }
+    
+    reception->realms_stock.realm_name = malloc(sizeof(char) * (strlen(realm_name) + 1));
+    strcpy(reception->realms_stock.realm_name, realm_name);
+    
+    reception->realms_stock.inventory.product_count = inventory.product_count;
+    reception->realms_stock.inventory.products = malloc(sizeof(Product) * inventory.product_count);
+    
+    for (j = 0; j < inventory.product_count; j++) {
+        reception->realms_stock.inventory.products[j] = inventory.products[j];
     }
 }
 
@@ -552,38 +515,37 @@ void addReceivedData (char** destination, int* total_bytes, char* new_data, int 
 }
 
 int checkTradeInventory(ReceptionInfo *reception, char *realm_name) {
-    int i = 0;
     int found = 0;
     char *upper_case1 = NULL;
     char *upper_case2 = NULL;
     
-    for (i = 0; i < reception->realms_stock.num_inventories; i++) {
-        upper_case1 = malloc(sizeof(char) * (strlen(reception->realms_stock.realm_inventories[i].realm_name) + 1));
-        upper_case2 = malloc(sizeof(char) * (strlen(realm_name) + 1));
-        
-        strcpy(upper_case1, reception->realms_stock.realm_inventories[i].realm_name);
-        strcpy(upper_case2, realm_name);
-        
-        convertToCapitalLetters(upper_case1);
-        convertToCapitalLetters(upper_case2);
-        
-        if (!strcmp(upper_case1, upper_case2)) {
-            found = 1;
-        }
-        
-        free(upper_case1);
-        free(upper_case2);
-        
-        if (found) {
-            break;
-        }
+    if (reception->realms_stock.realm_name == NULL) {
+        found = 0;
+        return found;
     }
+    
+    upper_case1 = malloc(sizeof(char) * (strlen(reception->realms_stock.realm_name) + 1));
+    upper_case2 = malloc(sizeof(char) * (strlen(realm_name) + 1));
+    
+    strcpy(upper_case1, reception->realms_stock.realm_name);
+    strcpy(upper_case2, realm_name);
+    
+    convertToCapitalLetters(upper_case1);
+    convertToCapitalLetters(upper_case2);
+    
+    if (!strcmp(upper_case1, upper_case2)) {
+        found = 1;
+    } else {
+        found = 0;
+    }
+    
+    free(upper_case1);
+    free(upper_case2);
     
     return found;
 }
 
 Inventory getRealmInventory(ReceptionInfo *reception, char *realm_name) {
-    int i = 0;
     int found = 0;
     char *upper_case1 = NULL;
     char *upper_case2 = NULL;
@@ -592,26 +554,28 @@ Inventory getRealmInventory(ReceptionInfo *reception, char *realm_name) {
     empty_inventory.products = NULL;
     empty_inventory.product_count = 0;
     
-    for (i = 0; i < reception->realms_stock.num_inventories; i++) {
-        upper_case1 = malloc(sizeof(char) * (strlen(reception->realms_stock.realm_inventories[i].realm_name) + 1));
-        upper_case2 = malloc(sizeof(char) * (strlen(realm_name) + 1));
-        
-        strcpy(upper_case1, reception->realms_stock.realm_inventories[i].realm_name);
-        strcpy(upper_case2, realm_name);
-        
-        convertToCapitalLetters(upper_case1);
-        convertToCapitalLetters(upper_case2);
-        
-        if (!strcmp(upper_case1, upper_case2)) {
-            found = 1;
-        }
-        
-        free(upper_case1);
-        free(upper_case2);
-        
-        if (found) {
-            return reception->realms_stock.realm_inventories[i].inventory;
-        }
+    if (reception->realms_stock.realm_name == NULL) {
+        return empty_inventory;
+    }
+    
+    upper_case1 = malloc(sizeof(char) * (strlen(reception->realms_stock.realm_name) + 1));
+    upper_case2 = malloc(sizeof(char) * (strlen(realm_name) + 1));
+    
+    strcpy(upper_case1, reception->realms_stock.realm_name);
+    strcpy(upper_case2, realm_name);
+    
+    convertToCapitalLetters(upper_case1);
+    convertToCapitalLetters(upper_case2);
+    
+    if (!strcmp(upper_case1, upper_case2)) {
+        found = 1;
+    }
+    
+    free(upper_case1);
+    free(upper_case2);
+    
+    if (found) {
+        return reception->realms_stock.inventory;
     }
     
     return empty_inventory;

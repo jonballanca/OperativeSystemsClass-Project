@@ -35,16 +35,7 @@ typedef struct {
     int status_count;
 } PledgeStatus;
 
-
 typedef struct {
-    Inventory inventory;
-    char *realm_name;
-} RealmInventory;
-
-typedef struct {
-    RealmInventory *realm_inventories;
-    int num_inventories;
-
     Inventory inventory;
     char *realm_name;
 } RealmsStock;
