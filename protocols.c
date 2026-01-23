@@ -299,6 +299,7 @@ void arrayToString(char* protocol_destination, char** destination_name) {
 }
 
 void getWordFromProtocol (char *data, int word_pos, char **word) {
+
     int i = 0;
     int j = 0;
     char *buffer = NULL;
@@ -321,6 +322,35 @@ void getWordFromProtocol (char *data, int word_pos, char **word) {
     *word = realloc(*word, sizeof(char) * (strlen(buffer) + 1));
     strcpy(*word, buffer);
     free(buffer);
+}
+
+Protocol stringToProtocol (char *buffer) {
+    Protocol protocol;
+    int i = 0;
+
+    protocol.type = buffer[0];
+
+    for (i = 0; i < ORIGIN_SIZE; i++) {
+        protocol.origin[i] = buffer[1 + i];
+    }
+
+    for (i = 0; i < DESTINATION_SIZE; i++) {
+        protocol.destination[i] = buffer[1 + ORIGIN_SIZE + i];
+    }
+
+    protocol.data_length = (uint16_t)((buffer[1 + ORIGIN_SIZE + DESTINATION_SIZE] << 8) | buffer[1 + ORIGIN_SIZE + DESTINATION_SIZE + 1]);
+
+    for (i = 0; i < DATA_MAX_SIZE; i++) {
+        if (i < protocol.data_length) {
+            protocol.data[i] = buffer[1 + ORIGIN_SIZE + DESTINATION_SIZE + 2 + i];
+        } else {
+            protocol.data[i] = 0x00;
+        }
+    }
+
+    protocol.checksum = (uint16_t)((buffer[1 + ORIGIN_SIZE + DESTINATION_SIZE + 2 + (int)protocol.data_length] << 8) | buffer[1 + ORIGIN_SIZE + DESTINATION_SIZE + 2 + DATA_MAX_SIZE + 1]);
+
+    return protocol;
 }
 
 /*********************************************** PROTOCOLS ***********************************************/

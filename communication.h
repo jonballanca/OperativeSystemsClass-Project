@@ -35,7 +35,6 @@ typedef struct {
     int status_count;
 } PledgeStatus;
 
-
 typedef struct {
     Inventory inventory;
     char *realm_name;
