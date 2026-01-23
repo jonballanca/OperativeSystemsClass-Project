@@ -44,6 +44,9 @@ typedef struct {
 typedef struct {
     RealmInventory *realm_inventories;
     int num_inventories;
+
+    Inventory inventory;
+    char *realm_name;
 } RealmsStock;
 
 
