@@ -78,7 +78,6 @@ int loadInventoryFromData (Inventory* inventory, char* data, int data_length) {
     int i;
     int product_size;
     Product product;
-    char* product_bytes;
     
     inventory->product_count = 0;
     bytes_read = 0;
@@ -88,34 +87,26 @@ int loadInventoryFromData (Inventory* inventory, char* data, int data_length) {
         showText("Error loading inventory from buffer\n");
         result = ERROR_INVENTORY_FILE;
     } else {
-        while (bytes_read < data_length) {
-            
-            if (bytes_read + product_size > data_length) {
-                break;
-            }
-            
-            product_bytes = (char*) &product;
+        while (bytes_read + product_size <= data_length) {
             for (i = 0; i < product_size; i++) {
-                product_bytes[i] = data[bytes_read + i];
+                ((char*)&product)[i] = data[bytes_read + i];
             }
             
             bytes_read = bytes_read + product_size;
             
-            if (product.name[0] == '\0') {
-                break;
+            if (product.name[0] != '\0') {
+                inventory->product_count++;
+                
+                if (inventory->product_count == 1) {
+                    inventory->products = (Product*) malloc(sizeof(Product) * inventory->product_count);
+                } else {
+                    inventory->products = (Product*) realloc(inventory->products, sizeof(Product) * inventory->product_count);
+                }
+                
+                strcpy(inventory->products[inventory->product_count - 1].name, product.name);
+                inventory->products[inventory->product_count - 1].amount = product.amount;
+                inventory->products[inventory->product_count - 1].weight = product.weight;
             }
-            
-            inventory->product_count++;
-            
-            if (inventory->product_count == 1) {
-                inventory->products = (Product*) malloc(sizeof(Product) * inventory->product_count);
-            } else {
-                inventory->products = (Product*) realloc(inventory->products, sizeof(Product) * inventory->product_count);
-            }
-            
-            strcpy(inventory->products[inventory->product_count - 1].name, product.name);
-            inventory->products[inventory->product_count - 1].amount = product.amount;
-            inventory->products[inventory->product_count - 1].weight = product.weight;
         }
         result = NO_ERROR;
     }

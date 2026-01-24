@@ -17,10 +17,6 @@
 #include "inventory.h"
 //#include "config.h"
 
-#define SENDING_INVENTORY 1
-#define SENDING_SIGIL 2
-#define SENDING_TRADE 3
-
 #define ACCEPTED 1
 #define REJECTED 2
 #define PENDING 3

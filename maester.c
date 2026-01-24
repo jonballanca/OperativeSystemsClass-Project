@@ -181,7 +181,7 @@ void sendTrade (Inventory trade, char* realm, char* file_path, ReceptionInfo **r
 
     protocol = commOrderRequest(maester, realm, file_path);
     sendToRoute(realm, protocol, maester);
-    printReset("\n\nSent trade!\n\n");
+    printReset("\n[DEBUG TRADE] Trade successfully sent!\n\n");
 
     /* Hardcode de Send Trade para la Fase 1 */
 
@@ -275,14 +275,14 @@ void pledge (char *realm_name, char *sigil_path, ReceptionInfo *reception) {
 
     if (error != -1) {
         reception->sending_file = SENDING_SIGIL;
-        asprintf(&buffer_global, RESET "Pledge sent to %s\n%s", realm_name, BOLD);
+        asprintf(&buffer_global, RESET "[DEBUG PLEDGE] Pledge sent to %s\n%s", realm_name, BOLD);
         write(1, buffer_global, strlen(buffer_global));
         free(buffer_global);
         buffer_global = NULL;
 
         reception->pledge_flag = 1;
 
-        asprintf(&buffer_global, RESET "Waiting for response...\n%s", BOLD);
+        asprintf(&buffer_global, RESET "[DEBUG PLEDGE] Waiting for response...\n%s", BOLD);
         write(1, buffer_global, strlen(buffer_global));
         free(buffer_global);
         buffer_global = NULL;
@@ -294,23 +294,15 @@ void pledge (char *realm_name, char *sigil_path, ReceptionInfo *reception) {
         while ((reception->pledge_flag == 1) && (timer_flag == 1));
         
         if (timer_flag == 0) {
-            write(1, "\n[DEBUG PLEDGE] Timer expired\n", 30);
             reception->sending_file = 0;
-            asprintf(&buffer_global, RESET "\nWaited for 2 minutes. Received no response.\n%s", BOLD);
-
             changeTimedOut(realm_name, TIMED_OUT, &maester);
-            
-            write(1, buffer_global, strlen(buffer_global));
-            free(buffer_global);
-            buffer_global = NULL;
+
+            printReset("\n[DEBUG PLEDGE] Waited for 2 minutes. Received no response.\n");
         }
 
         timer_flag = 1;
     } else {
-        asprintf(&buffer_global, RESET "Error connecting to socket.\n%s", BOLD);
-        write(1, buffer_global, strlen(buffer_global));
-        free(buffer_global);
-        buffer_global = NULL;
+        printReset("\n[DEBUG PLEDGE] Error connecting to socket.\n");
     }
 }
 
@@ -371,7 +363,7 @@ void listProductsMaester (char *realm_name) {
     error = sendToRoute(realm_name, protocol, maester);
 
     if (error != -1) {
-      showText("List products: OK (Pending F3)\n");
+        showText("[DEBUG LIST PRODUCTS] Header sent!\n");
     } else {
         asprintf(&buffer_global, RESET "Error connecting to socket.\n%s", BOLD);
         write(1, buffer_global, strlen(buffer_global));
@@ -432,7 +424,7 @@ void startTrade (char *realm, Inventory avail_inventory, ReceptionInfo *receptio
         word_count = 0;
 
         //Leer y comprobar que no hay errores
-        showText("(trade)> ");
+        printBold("(trade)> ");
         string_read = readUntil(0, '\n');
         command_separated = NULL;
         if (string_read != NULL) {
@@ -679,7 +671,7 @@ void* sendFiles (void* arg) {
                     temp_data = malloc(sizeof(char) * remaining_bytes);
                     bytes_read = read(fd, temp_data, remaining_bytes);
                     if (reception->send_listproducts == 1) {
-                        printReset("The list has been sealed and sent forth.\n");
+                        printReset("[DEBUG LIST PRODUCTS] The list has been sealed and sent forth.\n");
                         printBold("$ ");
                         protocol = commProductTransfer(maester, reception->realm_name_sending, reception->inventory_file_name, temp_data, bytes_read);
                     } else if (reception->send_sigil == 1) {

@@ -205,7 +205,6 @@ void sendAcceptance(Maester maester, char *realm_name, char *message) {
     Protocol protocol;
     struct in_addr ip;
     int port;
-    char *buffer = NULL;
     int printing = 0;
     
     getIpAndPortFromRealm(maester, realm_name, &ip, &port);
@@ -213,12 +212,6 @@ void sendAcceptance(Maester maester, char *realm_name, char *message) {
     protocol = commOrderResponse(maester, realm_name, "OK&ACCEPT");
     
     sendProtocol(ip, port, protocol);
-    
-    printing = asprintf(&buffer, "\n%s\n", message);
-    write(1, buffer, printing);
-    free(buffer);
-    
-    printBold("$ ");
 }
 
 void addActive (char *realm_name, Maester *maester) {
@@ -645,7 +638,7 @@ void handleTradeReception (ReceptionInfo *reception, Maester maester, Protocol p
 
             writeInventoryFile((*reception).inventory, (*reception).inventory_file_name);
 
-            printReset("Order processed successfully. Stock updated.\n");
+            printReset("[DEBUG TRADE] Order processed successfully. Stock updated.\n");
             sendAcceptance(maester, realm_name, "Trade accepted!");
         }
 
@@ -671,20 +664,23 @@ void receiveFileData (Protocol protocol, ReceptionInfo **reception, Maester *mae
     addReceivedData(&(*reception)->file_received, &(*reception)->bytes_received, protocol.data, protocol.data_length);
     
     if ((*reception)->bytes_received >= (*reception)->communication_filesize) {
-        printReset("\nFinished receiving file!\n");
+        printDoneReceiving((*reception)->receiving_file);
 
         getIpAndPortFromProtocol(protocol.origin, &ip, &port);
         getRealmNameFromIp(&realm_name, ip, port, maester);
         
         if ((*reception)->receiving_file == SENDING_INVENTORY) {
             handleInventoryReception(*reception, realm_name);
+            printBold("$ ");
         } else if ((*reception)->receiving_file == SENDING_SIGIL) {
             // Mirar md5sum y si está bien, activar el flag
             // Activar una flag
             //(*reception)->pledge_pending = 1;
             addPledgeStatus(*reception, PENDING, realm_name);
+            printBold("$ ");
         } else if ((*reception)->receiving_file == SENDING_TRADE) {
             handleTradeReception(*reception, *maester, protocol);
+            printBold("$ ");
         }
 
         free(realm_name);
@@ -695,7 +691,6 @@ void receiveFileData (Protocol protocol, ReceptionInfo **reception, Maester *mae
             free((*reception)->file_received);
             (*reception)->file_received = NULL;
         }
-        printBold("$ ");
     }
 }
 
@@ -705,7 +700,6 @@ void handleHeaderReception (Protocol protocol, ReceptionInfo **reception, Maeste
     int port;
     int filesize_pos = 0;
     char* word = NULL;
-    char *buffer = NULL;
 
     switch (receiving_type) {
         case SENDING_INVENTORY:
@@ -740,12 +734,7 @@ void handleHeaderReception (Protocol protocol, ReceptionInfo **reception, Maeste
     getWordFromProtocol(protocol.data, filesize_pos, &word);
     (*reception)->communication_filesize = atoi(word);
 
-    printReset("\nI am expecting to receive a file of ");
-    asprintf(&buffer, "%s", word);
-    write(1, buffer, strlen(buffer));
-    free(buffer);
-    buffer = NULL;
-    printReset(" bytes!\n");
+    printExpectedBytes(receiving_type, word);
     free(word);
     word = NULL;
 
@@ -764,7 +753,7 @@ void handleAckConfirmation (Protocol protocol, ReceptionInfo **reception) {
     switch ((*reception)->sending_file) {
         case SENDING_INVENTORY:
             // Hay que enviar fichero de list product
-            printReset("Unveiling the vault of goods...\n");
+            printReset("[DEBUG LIST PRODUCTS] Confirmed! Unveiling the vault of goods...\n");
             (*reception)->send_listproducts = 1;
             break;
         case SENDING_SIGIL:
@@ -797,7 +786,6 @@ void prepareSendingFile (int *file_size, int *fd, ReceptionInfo *reception, Maes
         getFileSize(reception->sigil_file_path, &file_size_str);
     } else if (sending_type == SENDING_TRADE) {
         *fd = open(reception->trade_file_path, O_RDONLY);
-        showText("Ova here\n");
         getFileSize(reception->trade_file_path, &file_size_str);
     }
     
@@ -895,8 +883,6 @@ void manageReception (ReceptionInfo **reception, Protocol *protocol, Maester *ma
             realm_name = NULL;
             break;
         case LIST_PRODUCT_REQUEST_TYPE:
-            printReset("\nReceived list product request!\n");
-
             getIpAndPortFromProtocol(protocol->origin, &ip, &port);
 
             getDataString(&realm_name, protocol->data);
@@ -908,7 +894,7 @@ void manageReception (ReceptionInfo **reception, Protocol *protocol, Maester *ma
 
             (*reception)->sending_file = SENDING_INVENTORY;
 
-            printReset("Response header sent!\n");
+            printReset("[DEBUG LIST PRODUCTS] Response sent!\n");
             //printBold("$ ");
 
             //protocol_send = commProductTransfer(*maester, realm_name, (*reception)->inventory_file_name);
@@ -924,8 +910,8 @@ void manageReception (ReceptionInfo **reception, Protocol *protocol, Maester *ma
             break;
         case LIST_PRODUCT_RESPOND_TYPE:
             //d no ok
-            printReset("\nList Products header received!\n");
-            printBold("$ ");
+            printReset("\n[DEBUG LIST PRODUCTS] Response received!");
+            //printBold("$ ");
 
             handleHeaderReception(*protocol, reception, *maester, SENDING_INVENTORY);
 
@@ -955,13 +941,13 @@ void manageReception (ReceptionInfo **reception, Protocol *protocol, Maester *ma
             //d no ok
             getWordFromProtocol(protocol->data, ORDER_CONFIRMATION_WORD, &word);
             if (!strcmp(word, "OK")) {
-                printReset("\nThe order was accepted!\n");
+                printReset("\n[DEBUG TRADE] The order was accepted!\n");
                 handleAckConfirmation(*protocol, reception);
             } else {
                 free(word);
                 word = NULL;
                 getWordFromProtocol(protocol->data, ORDER_REASON_WORD, &word);
-                printReset("\nThe order was rejected because:\n");
+                printReset("\n[DEBUG TRADE] The order was rejected because:\n");
                 printRejectReason(word);
                 (*reception)->sending_file = 0;
             }

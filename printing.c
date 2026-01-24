@@ -14,17 +14,17 @@ void showAvailableProducts (Inventory inventory) {
     int printing = 0;      // Entero que guarda el número de los bytes para escribir   
     char* buffer;           // Buffer que guarda lo que se quiere escribir por la terminal
 
-    showText("Available products: ");
+    printBold("Available products: ");
 
     for (i = 0; i < inventory.product_count; i++) {
-        printing = asprintf(&buffer, "%s", inventory.products[i].name);
+        printing = asprintf(&buffer, RESET "%s", inventory.products[i].name);
         write(1, buffer, printing);
         free(buffer);
 
         if (i == (inventory.product_count - 1)) {
-            showText(".\n");
+            printReset(".\n");
         } else {
-            showText(", ");
+            printReset(", ");
         }
     }
 }
@@ -130,7 +130,7 @@ void showInitializedMaester (Maester maester) {
 void printAllianceRequest (char *realm_name) {
     char *buffer = NULL;
 
-    asprintf(&buffer, RESET "\nAlliance request received from %s.\n%s$ ", realm_name, BOLD);
+    asprintf(&buffer, RESET "\n[DEBUG PLEDGE] Alliance request received from %s.\n%s$ ", realm_name, BOLD);
     write(1, buffer, strlen(buffer));
     free(buffer);
     buffer = NULL;
@@ -211,10 +211,50 @@ void printRejectReason (char *reason) {
     buffer = NULL;
 }
 
+void printExpectedBytes (int receiving_type, char *word) {
+    char *buffer = NULL;
+
+    switch (receiving_type) {
+        case SENDING_INVENTORY:
+            printReset("\n[DEBUG LIST PRODUCTS] I am expecting to receive a file of ");
+            break;
+        case SENDING_SIGIL:
+            printReset("\n[DEBUG PLEDGE] I am expecting to receive a file of ");
+            break;
+        case SENDING_TRADE:
+            printReset("\n[DEBUG TRADE] I am expecting to receive a file of ");
+            break;
+        default:
+            break;
+    }
+
+    asprintf(&buffer, "%s", word);
+    write(1, buffer, strlen(buffer));
+    free(buffer);
+    buffer = NULL;
+    printReset(" bytes!\n");
+}
+
+void printDoneReceiving (int receiving_type) {
+    switch (receiving_type) {
+        case SENDING_INVENTORY:
+            printReset("\n[DEBUG LIST PRODUCTS] Finished receiving file!\n");
+            break;
+        case SENDING_SIGIL:
+            printReset("\n[DEBUG PLEDGE] Finished receiving file!\n");
+            break;
+        case SENDING_TRADE:
+            printReset("\n[DEBUG TRADE] Finished receiving file!\n");
+            break;
+        default:
+            break;
+    }
+}
+
 void printListProductsRequest (char *realm_name) {
     char *buffer = NULL;
 
-    asprintf(&buffer, RESET ">>> LIST PRODUCTS request from %s.\n%s", realm_name, BOLD);
+    asprintf(&buffer, RESET "\n>>> LIST PRODUCTS request from %s.\n%s", realm_name, BOLD);
     write(1, buffer, strlen(buffer));
     free(buffer);
     buffer = NULL;

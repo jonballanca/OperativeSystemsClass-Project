@@ -43,6 +43,10 @@ typedef struct Inventory Inventory;
 #define DESTINATION_WORD 1
 #define TRADE_FILESIZE_WORD 2
 
+#define SENDING_INVENTORY 1
+#define SENDING_SIGIL 2
+#define SENDING_TRADE 3
+
 /***********************************************
 *
 * @Finalitat: Mostrar un mensaje de error para cuando hay un error de string vacio
@@ -177,6 +181,10 @@ void printIpAddress (struct in_addr ip);
 *
 ************************************************/
 void printRejectReason (char *reason);
+
+void printExpectedBytes (int receiving_type, char *word);
+
+void printDoneReceiving (int receiving_type);
 
 /***********************************************
 *
