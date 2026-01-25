@@ -34,8 +34,11 @@
 #define ERR_SOCKET "ERROR: no s'ha pogut crear el socket\n"
 #define ERR_CONNECT "ERROR: no s'ha pogut connectar amb el servidor\n"
 
+#define TYPE_SIZE 1
 #define ORIGIN_SIZE 20
 #define DESTINATION_SIZE 20
+#define DATALENGTH_SIZE 2
+#define CHECKSUM_SIZE 2
 #define DATA_MAX_SIZE 275
 
 #define PROTOCOL_SIZE 320
@@ -112,40 +115,37 @@ Protocol stringToProtocol (char *buffer);
 
 /*********************************************** PROTOCOLS ***********************************************/
 
-Protocol comAllianceRequest (Maester maester_orig, char *realm_name, char *sigil_path);
+void comAllianceRequest (char protocol[320], Maester maester_orig, char *realm_name, char *sigil_path);
 
-Protocol commSigilTransfer (Maester maester_orig, char *realm_name, char *data, int data_length);
+void comSigilTransfer (char protocol[320], Maester maester_orig, char *realm_name, char *data, int data_length);
 
-Protocol commAllianceResponse (Maester maester_orig, char *realm_name, char decision[]);
+void comAllianceResponse (char protocol[320], Maester maester_orig, char *realm_name, char *decision);
 
-Protocol commProductsRequest (Maester maester_orig, char *realm_name);
+void comProductsRequest (char protocol[320], Maester maester_orig, char *realm_name);
 
-Protocol commProductsResponse (Maester maester_orig, char *realm_name, char *file_path);
+void comProductsResponse (char protocol[320], Maester maester_orig, char *realm_name, char *file_path);
 
-Protocol commProductTransfer (Maester maester_orig, char *realm_name, char *file_path, char *data, int data_length);
+void comProductTransfer (char protocol[320], Maester maester_orig, char *realm_name, char *data, int data_length);
 
-// Completado - No utilizado para la Fase 2
-Protocol commOrderRequest (Maester maester_orig, char *realm_name, char *file_path);
+void comOrderRequest (char protocol[320], Maester maester_orig, char *realm_name, char *file_path);
 
-// Completado
-Protocol commOrderTransfer (Maester maester_orig, char *realm_name, char *data, int data_length);
+void comOrderTransfer (char protocol[320], Maester maester_orig, char *realm_name, char *data, int data_length);
 
-// Completado
-Protocol commOrderResponse (Maester maester_orig, char *realm_name, char response[]);
+void comOrderResponse (char protocol[320], Maester maester_orig, char *realm_name, char *response);
 
-Protocol commDisconnection (Maester maester_orig, char *realm_name);
+void comDisconnection (char protocol[320], Maester maester_orig, char *realm_name);
 
 /*********************************************** ERRORS ***********************************************/
 
-Protocol commUnknownRealm (Maester maester_orig, char *realm_name);
+void comUnknownRealm (char protocol[320], Maester maester_orig, char *realm_name);
 
-Protocol commNoAlliance (Maester maester_orig, char *realm_name);
+void comNoAlliance (char protocol[320], Maester maester_orig, char *realm_name);
 
-Protocol commAckFile (Maester maester_orig, char *realm_name, char response[]);
+void comAckFile (char protocol[320], Maester maester_orig, char *realm_name, char *response);
 
-Protocol commMd5Ack (Maester maester_orig, char *realm_name, int successful);
+void comMd5Ack (char protocol[320], Maester maester_orig, char *realm_name, int successful);
 
-Protocol commNACK (char *realm_name);
+void comNACK (char protocol[320], char *realm_name);
 
 #endif
 

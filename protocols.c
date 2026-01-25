@@ -353,27 +353,129 @@ Protocol stringToProtocol (char *buffer) {
     return protocol;
 }
 
+
+
+
+
+
+
+
+
+void copyOriginToProtocol (char protocol[320], char *ip, int port) {
+    char *port_char;
+    int i = 1, j = 0;
+
+    while (ip[j] != '\0') {
+        protocol[i] = ip[j];
+        i++;
+        j++;
+    }
+    protocol[i] = ':';
+    i++;
+
+    numberToString(port, &port_char);
+
+    j = 0;
+    while (port_char[j] != '\0') {
+        protocol[i++] = port_char[j++];
+    }
+
+    while (i < (TYPE_SIZE + ORIGIN_SIZE)) {
+        protocol[i++] = '\0';
+    }
+
+    free(port_char);
+}
+
+void copyDestinationToProtocol (char protocol[320], char *realm_name) {
+    int i = 0, j = 0;
+
+    i = TYPE_SIZE + ORIGIN_SIZE;
+
+    while (realm_name[j] != '\0') {
+        protocol[i] = realm_name[j];
+        i++;
+        j++;
+    }
+
+    while (i < (TYPE_SIZE + ORIGIN_SIZE + DESTINATION_SIZE)) {
+        protocol[i] = '\0';
+        i++;
+    }
+}
+
+int copyDataToProtocol (char protocol[320], char *data) {
+    int i = 0, j = 0;
+    u_int16_t datalength;
+
+    i = TYPE_SIZE + ORIGIN_SIZE + DESTINATION_SIZE + DATALENGTH_SIZE;
+
+    while (data[j] != '\0') {
+        protocol[i] = data[j];
+        i++;
+        j++;
+    }
+
+    i = TYPE_SIZE + ORIGIN_SIZE + DESTINATION_SIZE;
+
+    datalength = (u_int16_t) j;
+
+    protocol[i] = (datalength >> 8) & 0xFF;
+    protocol[i + 1] = datalength & 0xFF;
+
+    return j;
+}
+
+void copyCalculateChecksum (char protocol[320], int data_length) {
+    int i = 0;
+    int limit = 0;
+    int result = 0;
+    u_int16_t checksum;
+
+
+    limit = TYPE_SIZE + ORIGIN_SIZE + DESTINATION_SIZE + DATALENGTH_SIZE + data_length;
+
+    for (i = 0; i < limit; i++) {
+        result += protocol[i];
+    }
+
+    checksum = (u_int16_t) result;
+
+    protocol[limit] = (checksum >> 8) & 0xFF;
+    protocol[limit + 1] = checksum & 0xFF;
+}
+
+void copyPadding (char protocol[320], int data_length) {
+    int i = 0;
+
+    i = TYPE_SIZE + ORIGIN_SIZE + DESTINATION_SIZE + DATALENGTH_SIZE + data_length + CHECKSUM_SIZE;
+
+    while (i < PROTOCOL_SIZE) {
+        protocol[i] = '\0';
+        i++;
+    }
+}
+
 /*********************************************** PROTOCOLS ***********************************************/
 
-// Completado
-Protocol comAllianceRequest (Maester maester_orig, char *realm_name, char *sigil_path) {
-    Protocol protocol;
+void comAllianceRequest (char protocol[320], Maester maester_orig, char *realm_name, char *sigil_path) {
     char ip_string[INET_ADDRSTRLEN];
     char *data = NULL;
     char *sigil_name;
     char *file_size = 0;
     char *mdsum;
+    int data_length;
 
     inet_ntop(AF_INET, &maester_orig.ip, ip_string, sizeof(ip_string));
 
     // Type
-    protocol.type = ALLIANCE_REQUEST_TYPE;
+    protocol[0] = ALLIANCE_REQUEST_TYPE;
     
     // Origin
-    copyIpToOrigin(protocol.origin, ip_string, maester_orig.port);
+    copyOriginToProtocol(protocol, ip_string, maester_orig.port);
 
     // Destination
-    copyNameToDest(protocol.destination, realm_name);
+    copyDestinationToProtocol(protocol, realm_name);
 
     // Data formatting
     pathToName(sigil_path, &sigil_name);
@@ -381,7 +483,7 @@ Protocol comAllianceRequest (Maester maester_orig, char *realm_name, char *sigil
     calculateMD5SUM(&mdsum);
 
         // Name length + sigil name length + file size + MD5SUM size + 3 x '&' + '\0'
-    data = malloc(sizeof(uint8_t) * (strlen(maester_orig.realm_name) + strlen(sigil_name) + atoi(file_size) + 32 + 3 + 1));
+    data = malloc(sizeof(uint8_t) * (strlen(maester_orig.realm_name) + strlen(sigil_name) + strlen(file_size) + 32 + 3 + 1));
     data[0] = '\0';
     strcat(data, maester_orig.realm_name);
     strcat(data, "&");
@@ -391,65 +493,68 @@ Protocol comAllianceRequest (Maester maester_orig, char *realm_name, char *sigil
     strcat(data, "&");
     strcat(data, mdsum);
 
-    copyToData(&protocol, data);
+    // Data + datalength
+    data_length = copyDataToProtocol(protocol, data);
 
     // Checksum
-    protocol.checksum = calculateCheckSum(protocol);
+    copyCalculateChecksum(protocol, data_length);
+
+    // Padding
+    copyPadding(protocol, data_length);
 
     free(data);
     free(sigil_name);
     free(file_size);
-    free(mdsum);
-
-    return protocol;
 }
 
-// Completado
-Protocol commSigilTransfer (Maester maester_orig, char *realm_name, char *data, int data_length) {
-    Protocol protocol;
+void comSigilTransfer (char protocol[320], Maester maester_orig, char *realm_name, char *data, int data_length) {
     char ip_string[INET_ADDRSTRLEN];
-    int i = 0;
+    int i;
+    int data_start;
     
     inet_ntop(AF_INET, &maester_orig.ip, ip_string, sizeof(ip_string));
     
     // Type
-    protocol.type = SIGIL_TRANSFER_TYPE;
-
+    protocol[0] = SIGIL_TRANSFER_TYPE;
+    
     // Origin
-    copyIpToOrigin(protocol.origin, ip_string, maester_orig.port);
+    copyOriginToProtocol(protocol, ip_string, maester_orig.port);
 
     // Destination
-    copyNameToDest(protocol.destination, realm_name);
+    copyDestinationToProtocol(protocol, realm_name);
     
-    // Data formatting
+    // Data + datalength
+    data_start = TYPE_SIZE + ORIGIN_SIZE + DESTINATION_SIZE + DATALENGTH_SIZE;
     for (i = 0; i < data_length; i++) {
-        protocol.data[i] = data[i];
+        protocol[data_start + i] = data[i];
     }
-    protocol.data_length = data_length;
-    fillPadding(protocol.data, data_length);
+    
+    i = TYPE_SIZE + ORIGIN_SIZE + DESTINATION_SIZE;
+    protocol[i] = (data_length >> 8) & 0xFF;
+    protocol[i + 1] = data_length & 0xFF;
     
     // Checksum
-    protocol.checksum = calculateCheckSum(protocol);
-    
-    return protocol;
+    copyCalculateChecksum(protocol, data_length);
+
+    // Padding
+    copyPadding(protocol, data_length);
 }
 
-// Completado
-Protocol commAllianceResponse (Maester maester_orig, char *realm_name, char* decision) {
-    Protocol protocol;
+void comAllianceResponse (char protocol[320], Maester maester_orig, char *realm_name, char *decision) {
     char ip_string[INET_ADDRSTRLEN];
-    char *data = NULL;
+    char *data;
+    int data_length;
 
     inet_ntop(AF_INET, &maester_orig.ip, ip_string, sizeof(ip_string));
 
     // Type
-    protocol.type = ALLIANCE_RESPOND_TYPE;
+    protocol[0] = ALLIANCE_RESPOND_TYPE;
     
     // Origin
-    copyIpToOrigin(protocol.origin, ip_string, maester_orig.port);
+    copyOriginToProtocol(protocol, ip_string, maester_orig.port);
 
     // Destination
-    copyNameToDest(protocol.destination, realm_name);
+    copyDestinationToProtocol(protocol, realm_name);
 
     // Data formatting
     data = malloc(sizeof(char) * (strlen(decision) + strlen(maester_orig.realm_name) + 2));
@@ -457,69 +562,67 @@ Protocol commAllianceResponse (Maester maester_orig, char *realm_name, char* dec
     strcat(data, decision);
     strcat(data, "&");
     strcat(data, maester_orig.realm_name);
-    copyToData(&protocol, data);
+
+    // Data + datalength
+    data_length = copyDataToProtocol(protocol, data);
 
     // Checksum
-    protocol.checksum = calculateCheckSum(protocol);
+    copyCalculateChecksum(protocol, data_length);
+
+    // Padding
+    copyPadding(protocol, data_length);
 
     free(data);
-
-    return protocol;
 }
 
-// Completado
-Protocol commProductsRequest (Maester maester_orig, char *realm_name) {
-    Protocol protocol;
+void comProductsRequest (char protocol[320], Maester maester_orig, char *realm_name) {
     char ip_string[INET_ADDRSTRLEN];
-    char *data = NULL;
+    int data_length;
 
     inet_ntop(AF_INET, &maester_orig.ip, ip_string, sizeof(ip_string));
 
     // Type
-    protocol.type = LIST_PRODUCT_REQUEST_TYPE;
+    protocol[0] = LIST_PRODUCT_REQUEST_TYPE;
     
     // Origin
-    copyIpToOrigin(protocol.origin, ip_string, maester_orig.port);
+    copyOriginToProtocol(protocol, ip_string, maester_orig.port);
 
     // Destination
-    copyNameToDest(protocol.destination, realm_name);
+    copyDestinationToProtocol(protocol, realm_name);
 
-    // Data formatting
-    copyToData(&protocol, maester_orig.realm_name);
+    // Data + datalength
+    data_length = copyDataToProtocol(protocol, maester_orig.realm_name);
 
     // Checksum
-    protocol.checksum = calculateCheckSum(protocol);
+    copyCalculateChecksum(protocol, data_length);
 
-    free(data);
-
-    return protocol;
+    // Padding
+    copyPadding(protocol, data_length);
 }
 
-// Completado
-Protocol commProductsResponse (Maester maester_orig, char *realm_name, char *file_path) {
-    Protocol protocol;
+void comProductsResponse (char protocol[320], Maester maester_orig, char *realm_name, char *file_path) {
     char ip_string[INET_ADDRSTRLEN];
-    char *data = NULL;
-    char *file_size = 0;
+    char *data;
+    char *file_size;
     char *mdsum;
+    int data_length;
 
     inet_ntop(AF_INET, &maester_orig.ip, ip_string, sizeof(ip_string));
 
     // Type
-    protocol.type = LIST_PRODUCT_RESPOND_TYPE;
+    protocol[0] = LIST_PRODUCT_RESPOND_TYPE;
     
     // Origin
-    copyIpToOrigin(protocol.origin, ip_string, maester_orig.port);
+    copyOriginToProtocol(protocol, ip_string, maester_orig.port);
 
     // Destination
-    copyNameToDest(protocol.destination, realm_name);
+    copyDestinationToProtocol(protocol, realm_name);
 
     // Data formatting
     getFileSize(file_path, &file_size);
     calculateMD5SUM(&mdsum);
 
-        // Name length + sigil name length + file size + MD5SUM size + 2 x '&' + '\0'
-    data = malloc(sizeof(uint8_t) * (strlen(file_path) + atoi(file_size) + 32 + 2 + 1));
+    data = malloc(sizeof(uint8_t) * (strlen(file_path) + strlen(file_size) + 32 + 2 + 1));
     data[0] = '\0';
     strcat(data, file_path);
     strcat(data, "&");
@@ -527,73 +630,76 @@ Protocol commProductsResponse (Maester maester_orig, char *realm_name, char *fil
     strcat(data, "&");
     strcat(data, mdsum);
 
-    copyToData(&protocol, data);
+    // Data + datalength
+    data_length = copyDataToProtocol(protocol, data);
 
     // Checksum
-    protocol.checksum = calculateCheckSum(protocol);
+    copyCalculateChecksum(protocol, data_length);
+
+    // Padding
+    copyPadding(protocol, data_length);
 
     free(data);
     free(file_size);
     free(mdsum);
-
-    return protocol;
 }
 
-// Completado
-Protocol commProductTransfer (Maester maester_orig, char *realm_name, char *file_path, char *data, int data_length) {
-    Protocol protocol;
+void comProductTransfer (char protocol[320], Maester maester_orig, char *realm_name, char *data, int data_length) {
     char ip_string[INET_ADDRSTRLEN];
-    int i = 0;
+    int i;
+    int data_start;
     
     inet_ntop(AF_INET, &maester_orig.ip, ip_string, sizeof(ip_string));
     
     // Type
-    protocol.type = LIST_PRODUCT_TRANSFER_TYPE;
+    protocol[0] = LIST_PRODUCT_TRANSFER_TYPE;
     
     // Origin
-    copyIpToOrigin(protocol.origin, ip_string, maester_orig.port);
-    
+    copyOriginToProtocol(protocol, ip_string, maester_orig.port);
+
     // Destination
-    copyNameToDest(protocol.destination, realm_name);
+    copyDestinationToProtocol(protocol, realm_name);
     
-    // Data formatting
+    // Data + datalength
+    data_start = TYPE_SIZE + ORIGIN_SIZE + DESTINATION_SIZE + DATALENGTH_SIZE;
     for (i = 0; i < data_length; i++) {
-        protocol.data[i] = data[i];
+        protocol[data_start + i] = data[i];
     }
-    protocol.data_length = data_length;
-    fillPadding(protocol.data, data_length);
+    
+    i = TYPE_SIZE + ORIGIN_SIZE + DESTINATION_SIZE;
+    protocol[i] = (data_length >> 8) & 0xFF;
+    protocol[i + 1] = data_length & 0xFF;
     
     // Checksum
-    protocol.checksum = calculateCheckSum(protocol);
-    
-    return protocol;
+    copyCalculateChecksum(protocol, data_length);
+
+    // Padding
+    copyPadding(protocol, data_length);
 }
 
-// Completado
-Protocol commOrderRequest (Maester maester_orig, char *realm_name, char *file_path) {
-    Protocol protocol;
+void comOrderRequest (char protocol[320], Maester maester_orig, char *realm_name, char *file_path) {
     char ip_string[INET_ADDRSTRLEN];
-    char *data = NULL;
-    char *file_size = 0;
+    char *data;
+    char *file_size;
     char *mdsum;
+    int data_length;
 
     inet_ntop(AF_INET, &maester_orig.ip, ip_string, sizeof(ip_string));
 
     // Type
-    protocol.type = ORDER_REQUEST_TYPE;
+    protocol[0] = ORDER_REQUEST_TYPE;
     
     // Origin
-    copyIpToOrigin(protocol.origin, ip_string, maester_orig.port);
+    copyOriginToProtocol(protocol, ip_string, maester_orig.port);
 
     // Destination
-    copyNameToDest(protocol.destination, realm_name);
+    copyDestinationToProtocol(protocol, realm_name);
 
     // Data formatting
     getFileSize(file_path, &file_size);
     calculateMD5SUM(&mdsum);
 
-        // Name length + sigil name length + file size + MD5SUM size + 2 x '&' + '\0'
-    data = malloc(sizeof(uint8_t) * (strlen(file_path) + atoi(file_size) + 32 + 2 + 1));
+    data = malloc(sizeof(uint8_t) * (strlen(file_path) + strlen(file_size) + 32 + 2 + 1));
     data[0] = '\0';
     strcat(data, file_path);
     strcat(data, "&");
@@ -601,238 +707,260 @@ Protocol commOrderRequest (Maester maester_orig, char *realm_name, char *file_pa
     strcat(data, "&");
     strcat(data, mdsum);
 
-    copyToData(&protocol, data);
+    // Data + datalength
+    data_length = copyDataToProtocol(protocol, data);
 
     // Checksum
-    protocol.checksum = calculateCheckSum(protocol);
+    copyCalculateChecksum(protocol, data_length);
+
+    // Padding
+    copyPadding(protocol, data_length);
 
     free(data);
     free(file_size);
     free(mdsum);
-
-    return protocol;
 }
 
-// Completado
-Protocol commOrderTransfer (Maester maester_orig, char *realm_name, char *data, int data_length) {
-    Protocol protocol;
+void comOrderTransfer (char protocol[320], Maester maester_orig, char *realm_name, char *data, int data_length) {
     char ip_string[INET_ADDRSTRLEN];
-    int i = 0;
+    int i;
+    int data_start;
     
     inet_ntop(AF_INET, &maester_orig.ip, ip_string, sizeof(ip_string));
     
     // Type
-    protocol.type = ORDER_TRANSFER_TYPE;
+    protocol[0] = ORDER_TRANSFER_TYPE;
     
     // Origin
-    copyIpToOrigin(protocol.origin, ip_string, maester_orig.port);
-    
+    copyOriginToProtocol(protocol, ip_string, maester_orig.port);
+
     // Destination
-    copyNameToDest(protocol.destination, realm_name);
+    copyDestinationToProtocol(protocol, realm_name);
     
-    // Data formatting
+    // Data + datalength
+    data_start = TYPE_SIZE + ORIGIN_SIZE + DESTINATION_SIZE + DATALENGTH_SIZE;
     for (i = 0; i < data_length; i++) {
-        protocol.data[i] = data[i];
+        protocol[data_start + i] = data[i];
     }
-
-    protocol.data_length = data_length;
-    fillPadding(protocol.data, data_length);
+    
+    i = TYPE_SIZE + ORIGIN_SIZE + DESTINATION_SIZE;
+    protocol[i] = (data_length >> 8) & 0xFF;
+    protocol[i + 1] = data_length & 0xFF;
     
     // Checksum
-    protocol.checksum = calculateCheckSum(protocol);
-    
-    return protocol;
+    copyCalculateChecksum(protocol, data_length);
+
+    // Padding
+    copyPadding(protocol, data_length);
 }
 
-// Completado - No utilizado para la Fase 2
-Protocol commOrderResponse (Maester maester_orig, char *realm_name, char *response) {
-    Protocol protocol;
+void comOrderResponse (char protocol[320], Maester maester_orig, char *realm_name, char *response) {
     char ip_string[INET_ADDRSTRLEN];
-    char *data = NULL;
+    int data_length;
 
     inet_ntop(AF_INET, &maester_orig.ip, ip_string, sizeof(ip_string));
 
     // Type
-    protocol.type = ORDER_RESPOND_TYPE;
+    protocol[0] = ORDER_RESPOND_TYPE;
     
     // Origin
-    copyIpToOrigin(protocol.origin, ip_string, maester_orig.port);
+    copyOriginToProtocol(protocol, ip_string, maester_orig.port);
 
     // Destination
-    copyNameToDest(protocol.destination, realm_name);
+    copyDestinationToProtocol(protocol, realm_name);
 
-    // Data formatting
-    copyToData(&protocol, response);
+    // Data + datalength
+    data_length = copyDataToProtocol(protocol, response);
 
     // Checksum
-    protocol.checksum = calculateCheckSum(protocol);
+    copyCalculateChecksum(protocol, data_length);
 
-    free(data);
-
-    return protocol;
+    // Padding
+    copyPadding(protocol, data_length);
 }
 
-// Completado
-Protocol commDisconnection (Maester maester_orig, char *realm_name) {
-    Protocol protocol;
+void comDisconnection (char protocol[320], Maester maester_orig, char *realm_name) {
     char ip_string[INET_ADDRSTRLEN];
-    char *data = NULL;
+    int data_length;
 
     inet_ntop(AF_INET, &maester_orig.ip, ip_string, sizeof(ip_string));
 
     // Type
-    protocol.type = DISCONNECTION_TYPE;
+    protocol[0] = DISCONNECTION_TYPE;
 
     // Origin
-    copyIpToOrigin(protocol.origin, ip_string, maester_orig.port);
+    copyOriginToProtocol(protocol, ip_string, maester_orig.port);
 
     // Destination
-    copyNameToDest(protocol.destination, realm_name);
+    copyDestinationToProtocol(protocol, realm_name);
 
-    // Data formatting
-    copyToData(&protocol, "DISCONNECT");
+    // Data + datalength
+    data_length = copyDataToProtocol(protocol, "DISCONNECT");
 
     // Checksum
-    protocol.checksum = calculateCheckSum(protocol);
+    copyCalculateChecksum(protocol, data_length);
 
-    free(data);
-
-    return protocol;
+    // Padding
+    copyPadding(protocol, data_length);
 }
+
 
 /*********************************************** ERRORS ***********************************************/
 
-// Completado
-Protocol commUnknownRealm (Maester maester_orig, char *realm_name) {
-    Protocol protocol;
+
+void comUnknownRealm (char protocol[320], Maester maester_orig, char *realm_name) {
     char ip_string[INET_ADDRSTRLEN];
-    char *data = NULL;
+    char *data;
+    int data_length;
 
     inet_ntop(AF_INET, &maester_orig.ip, ip_string, sizeof(ip_string));
 
     // Type
-    protocol.type = UNKNOWN_REALM_TYPE;
+    protocol[0] = UNKNOWN_REALM_TYPE;
     
     // Origin
-    copyIpToOrigin(protocol.origin, ip_string, maester_orig.port);
+    copyOriginToProtocol(protocol, ip_string, maester_orig.port);
 
     // Destination
-    copyNameToDest(protocol.destination, realm_name);
+    copyDestinationToProtocol(protocol, realm_name);
 
     // Data formatting
-    copyToData(&protocol, "UNKNOWN_REALM");
-
-    // Checksum
-    protocol.checksum = calculateCheckSum(protocol);
-
-    free(data);
-
-    return protocol;
-}
-
-// Completado
-Protocol commNoAlliance (Maester maester_orig, char *realm_name) {
-    Protocol protocol;
-    char ip_string[INET_ADDRSTRLEN];
-    char *data = NULL;
-
-    inet_ntop(AF_INET, &maester_orig.ip, ip_string, sizeof(ip_string));
-
-    // Type
-    protocol.type = NO_ALLIANCE_TYPE;
-    
-    // Origin
-    copyIpToOrigin(protocol.origin, ip_string, maester_orig.port);
-
-    // Destination
-    copyNameToDest(protocol.destination, realm_name);
-
-    // Data formatting
-    copyToData(&protocol, "AUTH");
-
-    // Checksum
-    protocol.checksum = calculateCheckSum(protocol);
-
-    free(data);
-
-    return protocol;
-}
-
-// Completado
-Protocol commAckFile (Maester maester_orig, char *realm_name, char response[]) {
-    Protocol protocol;
-    char ip_string[INET_ADDRSTRLEN];
-    char *data = NULL;
-
-    inet_ntop(AF_INET, &maester_orig.ip, ip_string, sizeof(ip_string));
-
-    // Type
-    protocol.type = ACK_FILE_TYPE;
-    
-    // Origin
-    copyIpToOrigin(protocol.origin, ip_string, maester_orig.port);
-
-    // Destination
-    copyNameToDest(protocol.destination, realm_name);
-
-    // Data formattin
-    data = malloc(sizeof(char) * (strlen(response) + 1 + strlen(realm_name) + 1));
+    data = malloc(sizeof(char) * (strlen("UNKNOWN_REALM") + strlen(realm_name) + 2));
     data[0] = '\0';
-    strcpy(data, response);
+    strcat(data, "UNKNOWN_REALM");
     strcat(data, "&");
     strcat(data, realm_name);
-    copyToData(&protocol, data);
+
+    // Data + datalength
+    data_length = copyDataToProtocol(protocol, data);
 
     // Checksum
-    protocol.checksum = calculateCheckSum(protocol);
+    copyCalculateChecksum(protocol, data_length);
+
+    // Padding
+    copyPadding(protocol, data_length);
 
     free(data);
-
-    return protocol;
 }
 
-// Completado
-Protocol commMd5Ack (Maester maester_orig, char *realm_name, int successful) {
-    Protocol protocol;
+void comNoAlliance (char protocol[320], Maester maester_orig, char *realm_name) {
     char ip_string[INET_ADDRSTRLEN];
-    char *data = NULL;
+    int data_length;
 
     inet_ntop(AF_INET, &maester_orig.ip, ip_string, sizeof(ip_string));
 
     // Type
-    protocol.type = CHECKSUM_TYPE;
+    protocol[0] = NO_ALLIANCE_TYPE;
     
     // Origin
-    copyIpToOrigin(protocol.origin, ip_string, maester_orig.port);
+    copyOriginToProtocol(protocol, ip_string, maester_orig.port);
 
     // Destination
-    copyNameToDest(protocol.destination, realm_name);
+    copyDestinationToProtocol(protocol, realm_name);
 
-    // Data formatting
-
-    if (successful) {
-        copyToData(&protocol, "CHECK_OK");
-    } else {
-        copyToData(&protocol, "CHECK_KO");
-    }
+    // Data + datalength
+    data_length = copyDataToProtocol(protocol, "AUTH");
 
     // Checksum
-    protocol.checksum = calculateCheckSum(protocol);
+    copyCalculateChecksum(protocol, data_length);
 
-    free(data);
-
-    return protocol;
+    // Padding
+    copyPadding(protocol, data_length);
 }
 
-// Completado
-Protocol commNACK (char *realm_name) {
-    Protocol protocol;
+void comAckFile (char protocol[320], Maester maester_orig, char *realm_name, char *response) {
+    char ip_string[INET_ADDRSTRLEN];
+    char *data;
+    int data_length;
+
+    inet_ntop(AF_INET, &maester_orig.ip, ip_string, sizeof(ip_string));
 
     // Type
-    protocol.type = NACK_TYPE;
+    protocol[0] = ACK_FILE_TYPE;
+    
+    // Origin
+    copyOriginToProtocol(protocol, ip_string, maester_orig.port);
+
+    // Destination
+    copyDestinationToProtocol(protocol, realm_name);
 
     // Data formatting
-    copyToData(&protocol, realm_name);
+    data = malloc(sizeof(char) * (strlen(response) + strlen(realm_name) + 2));
+    data[0] = '\0';
+    strcat(data, response);
+    strcat(data, "&");
+    strcat(data, realm_name);
 
-    return protocol;
+    // Data + datalength
+    data_length = copyDataToProtocol(protocol, data);
+
+    // Checksum
+    copyCalculateChecksum(protocol, data_length);
+
+    // Padding
+    copyPadding(protocol, data_length);
+
+    free(data);
+}
+
+void comMd5Ack (char protocol[320], Maester maester_orig, char *realm_name, int successful) {
+    char ip_string[INET_ADDRSTRLEN];
+    char *data;
+    int data_length;
+
+    inet_ntop(AF_INET, &maester_orig.ip, ip_string, sizeof(ip_string));
+
+    // Type
+    protocol[0] = CHECKSUM_TYPE;
+    
+    // Origin
+    copyOriginToProtocol(protocol, ip_string, maester_orig.port);
+
+    // Destination
+    copyDestinationToProtocol(protocol, realm_name);
+
+    // Data formatting
+    data = malloc(sizeof(char) * (strlen("CHECK_OK") + strlen(realm_name) + 2));
+    data[0] = '\0';
+    
+    if (successful) {
+        strcat(data, "CHECK_OK");
+    } else {
+        strcat(data, "CHECK_KO");
+    }
+    strcat(data, "&");
+    strcat(data, realm_name);
+
+    // Data + datalength
+    data_length = copyDataToProtocol(protocol, data);
+
+    // Checksum
+    copyCalculateChecksum(protocol, data_length);
+
+    // Padding
+    copyPadding(protocol, data_length);
+
+    free(data);
+}
+
+void comNACK (char protocol[320], char *realm_name) {
+    int data_length;
+
+    // Type
+    protocol[0] = NACK_TYPE;
+    
+    // Origin
+    copyOriginToProtocol(protocol, "", 0);
+
+    // Destination
+    copyDestinationToProtocol(protocol, "");
+
+    // Data + datalength
+    data_length = copyDataToProtocol(protocol, realm_name);
+
+    // Checksum
+    copyCalculateChecksum(protocol, data_length);
+
+    // Padding
+    copyPadding(protocol, data_length);
 }
