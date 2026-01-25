@@ -79,9 +79,9 @@ typedef struct {
 
 void initializeReception (ReceptionInfo *reception, Inventory inventory, char *argument);
 
-int sendProtocol(struct in_addr ip, int port, Protocol protocol);
+int sendProtocol(struct in_addr ip, int port, char *protocol);
 
-int sendToRoute (char* destination_name, Protocol protocol, Maester maester);
+int sendToRoute (char* destination_name, char *protocol, Maester maester);
 
 void addAlliance (char *realm_name, Maester *maester, struct in_addr ip, int port);
 
@@ -107,7 +107,7 @@ void sendACK ();
 
 int getIfResponseType (Protocol protocol);
 
-int checkDestinationRequest (Protocol protocol, struct sockaddr_in client_addr, Maester *maester, ReceptionInfo **reception);
+int checkDestinationRequest (char protocol_string[PROTOCOL_SIZE], Protocol protocol, struct sockaddr_in client_addr, Maester *maester, ReceptionInfo **reception);
 
 void getRealmNameFromIp (char **realm_name, struct in_addr ip, int port, Maester *maester);
 

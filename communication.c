@@ -38,14 +38,14 @@ void initializeReception (ReceptionInfo *reception, Inventory inventory, char *a
     pthread_mutex_init(&reception->pledge_status_mutex, NULL);
 }
 
-int sendProtocol(struct in_addr ip, int port, Protocol protocol) {
+int sendProtocol(struct in_addr ip, int port, char *protocol) {
     //LO QUE TENDREMOS QUE HACER CON EL SOCKET
     int fd = 0;
 
     fd = openClientConn (ip, port);
 
     if (fd != -1) {
-        write(fd, &protocol, sizeof(Protocol));
+        write(fd, protocol, PROTOCOL_SIZE);
         close(fd);
         return 1;
     }
@@ -53,7 +53,7 @@ int sendProtocol(struct in_addr ip, int port, Protocol protocol) {
     return -1;
 }
 
-int sendToRoute (char* destination_name, Protocol protocol, Maester maester) {
+int sendToRoute (char* destination_name, char *protocol, Maester maester) {
     int error = -1;
     int i = 0;
     int route_exists = 0;
@@ -157,12 +157,12 @@ void sendDisconection (Maester maester) {
     int active_allys = 0;
     int printing = 0;
     char *buffer = NULL;
-    Protocol protocol;
+    char protocol[PROTOCOL_SIZE];
 
     for (i = 0; i < maester.num_routes; i++) {
         if (maester.routes[i].alliance_exists && maester.routes[i].active) {
             active_allys = 1;
-            protocol = commDisconnection(maester, maester.routes[i].realm_name);
+            commDisconnection(protocol, maester, maester.routes[i].realm_name);
             sendToRoute(maester.routes[i].realm_name, protocol, maester);
         }
     }
@@ -177,7 +177,7 @@ void sendDisconection (Maester maester) {
 }
 
 void sendRejection(Maester maester, char *realm_name, char *reason) {
-    Protocol protocol;
+    char protocol[PROTOCOL_SIZE];
     struct in_addr ip;
     int port;
     char *buffer = NULL;
@@ -188,7 +188,7 @@ void sendRejection(Maester maester, char *realm_name, char *reason) {
     buffer = malloc(sizeof(char) * (strlen(reason) + 1 + strlen("REJECT")));
     strcat("REJECT&", reason);
 
-    protocol = commOrderResponse(maester, realm_name, buffer);
+    commOrderResponse(protocol, maester, realm_name, buffer);
     sendProtocol(ip, port, protocol);
 
     free(buffer);
@@ -202,14 +202,14 @@ void sendRejection(Maester maester, char *realm_name, char *reason) {
 }
 
 void sendAcceptance(Maester maester, char *realm_name, char *message) {
-    Protocol protocol;
+    char protocol[PROTOCOL_SIZE];
     struct in_addr ip;
     int port;
     int printing = 0;
     
     getIpAndPortFromRealm(maester, realm_name, &ip, &port);
     
-    protocol = commOrderResponse(maester, realm_name, "OK&ACCEPT");
+    commOrderResponse(protocol, maester, realm_name, "OK&ACCEPT");
     
     sendProtocol(ip, port, protocol);
 }
@@ -387,7 +387,7 @@ int getIfResponseType (Protocol protocol) {
     return response_type;
 }
 
-int checkDestinationRequest (Protocol protocol, struct sockaddr_in client_addr, Maester *maester, ReceptionInfo **reception) {
+int checkDestinationRequest (char protocol_string[PROTOCOL_SIZE], Protocol protocol, struct sockaddr_in client_addr, Maester *maester, ReceptionInfo **reception) {
     int checksum = 0;
     int error = 0;
     int previous_bytes_sent = 0;
@@ -432,7 +432,7 @@ int checkDestinationRequest (Protocol protocol, struct sockaddr_in client_addr, 
             previous_bytes_sent = (*reception)->hop_bytes_sent;
             (*reception)->hop_bytes_sent += protocol.data_length;
         }
-        error = sendToRoute(destination_name, protocol, *maester);
+        error = sendToRoute(destination_name, protocol_string, *maester);
         showHopMessage(destination_name, protocol, client_addr, error, *maester, (*reception)->hop_bytes_sent, (*reception)->hop_total_bytes, previous_bytes_sent);
         error = -1;
         if ((protocol.type == SIGIL_TRANSFER_TYPE) && ((*reception)->hop_bytes_sent >= (*reception)->hop_total_bytes)) {
@@ -496,15 +496,21 @@ void addReceivedData (char** destination, int* total_bytes, char* new_data, int 
     int old_size;
     int total_size;
     
-    old_size = total_bytes[0];
-    total_size = old_size + bytes_received;
-    total_bytes[0] = total_size;
-    
-    destination[0] = realloc(destination[0], sizeof(char) * total_size);
+    if (destination[0] == NULL) {
+        old_size = 0;
+        total_size = bytes_received;
+        destination[0] = malloc(sizeof(char) * bytes_received);
+    } else {
+        old_size = total_bytes[0];
+        total_size = old_size + bytes_received;
+        destination[0] = realloc(destination[0], sizeof(char) * total_size);
+    }
     
     for (i = 0; i < bytes_received; i++) {
         destination[0][old_size + i] = new_data[i];
     }
+    
+    total_bytes[0] = total_size;
 }
 
 int checkTradeInventory(ReceptionInfo *reception, char *realm_name) {
@@ -661,9 +667,23 @@ void receiveFileData (Protocol protocol, ReceptionInfo **reception, Maester *mae
     int port;
     char* realm_name;
 
+    char *debug_buf = NULL;
+    asprintf(&debug_buf, "[DEBUG RECEIVE] Before: bytes_received=%d, file_received=%p, protocol.data_length=%d\n", 
+             (*reception)->bytes_received, 
+             (void*)(*reception)->file_received,
+             protocol.data_length);
+    write(1, debug_buf, strlen(debug_buf));
+    free(debug_buf);
+
     addReceivedData(&(*reception)->file_received, &(*reception)->bytes_received, protocol.data, protocol.data_length);
+
+    asprintf(&debug_buf, "[DEBUG RECEIVE] After: bytes_received=%d, communication_filesize=%d\n", 
+             (*reception)->bytes_received,
+             (*reception)->communication_filesize);
+    write(1, debug_buf, strlen(debug_buf));
+    free(debug_buf);
     
-    if ((*reception)->bytes_received >= (*reception)->communication_filesize) {
+    if ((*reception)->bytes_received == (*reception)->communication_filesize) {
         printDoneReceiving((*reception)->receiving_file);
 
         getIpAndPortFromProtocol(protocol.origin, &ip, &port);
@@ -695,7 +715,7 @@ void receiveFileData (Protocol protocol, ReceptionInfo **reception, Maester *mae
 }
 
 void handleHeaderReception (Protocol protocol, ReceptionInfo **reception, Maester maester, int receiving_type) {
-    Protocol protocol_send;
+    char protocol_send[PROTOCOL_SIZE];
     struct in_addr ip;
     int port;
     int filesize_pos = 0;
@@ -718,13 +738,19 @@ void handleHeaderReception (Protocol protocol, ReceptionInfo **reception, Maeste
     getIpAndPortFromProtocol(protocol.origin, &ip, &port);
 
     if ((*reception)->receiving_file) {
-        protocol_send = commAckFile(maester, maester.realm_name, "KO");
+        commAckFile(protocol_send, maester, maester.realm_name, "KO");
         sendProtocol(ip, port, protocol_send);
         //sendToRoute(protocol.destination, protocol, maester);
         return;
     }
 
-    protocol_send = commAckFile(maester, maester.realm_name, "OK");
+    if ((*reception)->file_received != NULL) {
+        free((*reception)->file_received);
+        (*reception)->file_received = NULL;
+    }
+    (*reception)->bytes_received = 0;
+
+    commAckFile(protocol_send, maester, maester.realm_name, "OK");
     sendProtocol(ip, port, protocol_send);
     //sendToRoute(protocol.destination, protocol, maester);
     (*reception)->receiving_file = receiving_type;
@@ -743,6 +769,8 @@ void handleHeaderReception (Protocol protocol, ReceptionInfo **reception, Maeste
     strcpy((*reception)->list_mdsum, word);
 
     printBold("$ ");
+
+    free(word);
 }
 
 void handleAckConfirmation (Protocol protocol, ReceptionInfo **reception) {
@@ -794,7 +822,7 @@ void prepareSendingFile (int *file_size, int *fd, ReceptionInfo *reception, Maes
 }
 
 void manageReception (ReceptionInfo **reception, Protocol *protocol, Maester *maester, int flag) {
-    Protocol protocol_send;
+    char protocol_send[PROTOCOL_SIZE];
     char* realm_name = NULL;
     char* word = NULL;
     char* pledge_decision = NULL;
@@ -845,7 +873,7 @@ void manageReception (ReceptionInfo **reception, Protocol *protocol, Maester *ma
 
             if (checkTimedOut(*maester, realm_name)) {
                 // send NACK
-                protocol_send = commNACK(maester->realm_name);
+                commNACK(protocol_send, maester->realm_name);
                 sendProtocol(ip, port, protocol_send);
 
                 addPledgeStatus(*reception, REJECTED, realm_name);
@@ -864,7 +892,7 @@ void manageReception (ReceptionInfo **reception, Protocol *protocol, Maester *ma
                 break;
             }
 
-            protocol_send = commAckFile(*maester, realm_name, "OK");
+            commAckFile(protocol_send, *maester, realm_name, "OK");
             sendProtocol(ip, port, protocol_send);
 
             if (!strcmp(pledge_decision, "ACCEPT")) {
@@ -889,7 +917,7 @@ void manageReception (ReceptionInfo **reception, Protocol *protocol, Maester *ma
 
             printListProductsRequest(realm_name);
 
-            protocol_send = commProductsResponse(*maester, realm_name, (*reception)->inventory_file_name);
+            commProductsResponse(protocol_send, *maester, realm_name, (*reception)->inventory_file_name);
             sendProtocol(ip, port, protocol_send);
 
             (*reception)->sending_file = SENDING_INVENTORY;
@@ -1063,7 +1091,7 @@ void manageReception (ReceptionInfo **reception, Protocol *protocol, Maester *ma
             break;
         default:
             getIpAndPortFromProtocol(protocol->origin, &ip, &port);
-            protocol_send = commNACK(maester->realm_name);
+            commNACK(protocol_send, maester->realm_name);
             sendProtocol(ip, port, protocol_send);
             break;
     }

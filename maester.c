@@ -173,13 +173,13 @@ void removeFromTrade (Inventory* avail_inventory, Inventory* trade, char** argum
 *
 ************************************************/
 void sendTrade (Inventory trade, char* realm, char* file_path, ReceptionInfo **reception) {
-    Protocol protocol;
+    char protocol[PROTOCOL_SIZE];
 
     (*reception)->sending_file = SENDING_TRADE;
     (*reception)->trade_file_path = realloc((*reception)->trade_file_path, sizeof(char) * (strlen(file_path) + 1));
     strcpy((*reception)->trade_file_path, file_path);
 
-    protocol = commOrderRequest(maester, realm, file_path);
+    commOrderRequest(protocol, maester, realm, file_path);
     sendToRoute(realm, protocol, maester);
     printReset("\n[DEBUG TRADE] Trade successfully sent!\n\n");
 
@@ -264,12 +264,12 @@ void listRealms() {
 *
 ************************************************/
 void pledge (char *realm_name, char *sigil_path, ReceptionInfo *reception) {
-    Protocol protocol;
+    char protocol[PROTOCOL_SIZE];
     int error = 0;
 
     changeTimedOut(realm_name, RESET_TIMED_OUT, &maester);
 
-    protocol = comAllianceRequest(maester, realm_name, sigil_path);
+    commAllianceRequest(protocol, maester, realm_name, sigil_path);
 
     error = sendToRoute(realm_name, protocol, maester);
 
@@ -314,10 +314,10 @@ void pledge (char *realm_name, char *sigil_path, ReceptionInfo *reception) {
 *
 ************************************************/
 void pledgeRespond(char* realm_name, char* decision, struct in_addr ip, int port, ReceptionInfo *reception){
-    Protocol protocol;
+    char protocol[PROTOCOL_SIZE];
     int error = 0;
 
-    protocol = commAllianceResponse (maester, realm_name, decision);
+    commAllianceResponse (protocol, maester, realm_name, decision);
 
     error = sendToRoute(realm_name, protocol, maester);
 
@@ -355,10 +355,10 @@ void pledgeRespond(char* realm_name, char* decision, struct in_addr ip, int port
 *
 ************************************************/
 void listProductsMaester (char *realm_name) {
-    Protocol protocol;
+    char protocol[PROTOCOL_SIZE];
     int error = 0;
 
-    protocol = commProductsRequest(maester, realm_name);
+    commProductsRequest(protocol, maester, realm_name);
 
     error = sendToRoute(realm_name, protocol, maester);
 
@@ -581,17 +581,14 @@ void exitMaester (Inventory* inventory) {
 // Thread
 void* receiveClients (void* arg) {
     ReceptionInfo* reception = (ReceptionInfo*)arg;
-    Protocol protocol;
+    Protocol protocol_struct;
+    char protocol[PROTOCOL_SIZE];
+    char ip_string[INET_ADDRSTRLEN];
     int flag = 0;
     int error = 0;
 
     struct sockaddr_in client_addr;
     socklen_t addrlen = sizeof(client_addr);
-
-    /*asprintf(&buffer_threads,"\n\nIP : %s\n\n", inet_ntoa(reception->maester.ip));
-    write(1, buffer_threads, strlen(buffer_threads));
-    free(buffer_threads);
-    buffer_threads = NULL;*/
 
     fd_socket = createSocket(maester.ip, maester.port);
 
@@ -603,22 +600,21 @@ void* receiveClients (void* arg) {
 
     do {
         fd_client = accept(fd_socket, &client_addr, &addrlen);
+        
+        inet_ntop(AF_INET, &client_addr.sin_addr, ip_string, INET_ADDRSTRLEN);
 
-        char *ip_string = NULL;
-        inet_ntop(AF_INET, &client_addr.sin_addr, ip_string, sizeof(ip_string));
+        read(fd_client, protocol, PROTOCOL_SIZE);
 
-        read(fd_client, &protocol, sizeof(Protocol));
+        protocol_struct = stringToProtocol(protocol);
 
-        error = checkDestinationRequest(protocol, client_addr, &maester, &reception);
+        error = checkDestinationRequest(protocol, protocol_struct, client_addr, &maester, &reception);
 
         if (error != -1) {
-            manageReception(&reception, &protocol, &maester, flag);
+            manageReception(&reception, &protocol_struct, &maester, flag);
         }
 
         close(fd_client);
     } while (1);
-
-    showText("Gets out??\n");
     
     return NULL;
 }
@@ -626,12 +622,12 @@ void* receiveClients (void* arg) {
 // Thread
 void* sendFiles (void* arg) {
     ReceptionInfo* reception = (ReceptionInfo*)arg;
+    char protocol[PROTOCOL_SIZE];
     int flag = 0;
     int file_opened = 0;
     int fd = 0;
     char data[DATA_MAX_SIZE];
     char *temp_data = NULL;
-    Protocol protocol;
     struct in_addr ip;
     int port = 0;
     int bytes_read = 0;
@@ -659,11 +655,11 @@ void* sendFiles (void* arg) {
                 if (DATA_MAX_SIZE <= remaining_bytes) {
                     bytes_read = read(fd, data, DATA_MAX_SIZE);
                     if (reception->send_listproducts == 1) {
-                        protocol = commProductTransfer(maester, reception->realm_name_sending, reception->inventory_file_name, data, bytes_read);
+                        commProductTransfer(protocol, maester, reception->realm_name_sending, data, bytes_read);
                     } else if (reception->send_sigil == 1) {
-                        protocol = commSigilTransfer(maester, reception->realm_name_sending, data, bytes_read);
+                        commSigilTransfer(protocol, maester, reception->realm_name_sending, data, bytes_read);
                     } else if (reception->send_trade == 1) {
-                        protocol = commOrderTransfer(maester, reception->realm_name_sending, data, bytes_read);
+                        commOrderTransfer(protocol, maester, reception->realm_name_sending, data, bytes_read);
                     }
                     sendToRoute(reception->realm_name_sending, protocol, maester);
                     reception->bytes_sent += bytes_read;
@@ -673,11 +669,11 @@ void* sendFiles (void* arg) {
                     if (reception->send_listproducts == 1) {
                         printReset("[DEBUG LIST PRODUCTS] The list has been sealed and sent forth.\n");
                         printBold("$ ");
-                        protocol = commProductTransfer(maester, reception->realm_name_sending, reception->inventory_file_name, temp_data, bytes_read);
+                        commProductTransfer(protocol, maester, reception->realm_name_sending, temp_data, bytes_read);
                     } else if (reception->send_sigil == 1) {
-                        protocol = commSigilTransfer(maester, reception->realm_name_sending, temp_data, bytes_read);
+                        commSigilTransfer(protocol, maester, reception->realm_name_sending, temp_data, bytes_read);
                     } else if (reception->send_trade == 1) {
-                        protocol = commOrderTransfer(maester, reception->realm_name_sending, temp_data, bytes_read);
+                        commOrderTransfer(protocol, maester, reception->realm_name_sending, temp_data, bytes_read);
                     }
 
                     sendToRoute(reception->realm_name_sending, protocol, maester);

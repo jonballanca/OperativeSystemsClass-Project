@@ -115,37 +115,37 @@ Protocol stringToProtocol (char *buffer);
 
 /*********************************************** PROTOCOLS ***********************************************/
 
-void comAllianceRequest (char protocol[320], Maester maester_orig, char *realm_name, char *sigil_path);
+void commAllianceRequest (char protocol[320], Maester maester_orig, char *realm_name, char *sigil_path);
 
-void comSigilTransfer (char protocol[320], Maester maester_orig, char *realm_name, char *data, int data_length);
+void commSigilTransfer (char protocol[320], Maester maester_orig, char *realm_name, char *data, int data_length);
 
-void comAllianceResponse (char protocol[320], Maester maester_orig, char *realm_name, char *decision);
+void commAllianceResponse (char protocol[320], Maester maester_orig, char *realm_name, char *decision);
 
-void comProductsRequest (char protocol[320], Maester maester_orig, char *realm_name);
+void commProductsRequest (char protocol[320], Maester maester_orig, char *realm_name);
 
-void comProductsResponse (char protocol[320], Maester maester_orig, char *realm_name, char *file_path);
+void commProductsResponse (char protocol[320], Maester maester_orig, char *realm_name, char *file_path);
 
-void comProductTransfer (char protocol[320], Maester maester_orig, char *realm_name, char *data, int data_length);
+void commProductTransfer (char protocol[320], Maester maester_orig, char *realm_name, char *data, int data_length);
 
-void comOrderRequest (char protocol[320], Maester maester_orig, char *realm_name, char *file_path);
+void commOrderRequest (char protocol[320], Maester maester_orig, char *realm_name, char *file_path);
 
-void comOrderTransfer (char protocol[320], Maester maester_orig, char *realm_name, char *data, int data_length);
+void commOrderTransfer (char protocol[320], Maester maester_orig, char *realm_name, char *data, int data_length);
 
-void comOrderResponse (char protocol[320], Maester maester_orig, char *realm_name, char *response);
+void commOrderResponse (char protocol[320], Maester maester_orig, char *realm_name, char *response);
 
-void comDisconnection (char protocol[320], Maester maester_orig, char *realm_name);
+void commDisconnection (char protocol[320], Maester maester_orig, char *realm_name);
 
 /*********************************************** ERRORS ***********************************************/
 
-void comUnknownRealm (char protocol[320], Maester maester_orig, char *realm_name);
+void commUnknownRealm (char protocol[320], Maester maester_orig, char *realm_name);
 
-void comNoAlliance (char protocol[320], Maester maester_orig, char *realm_name);
+void commNoAlliance (char protocol[320], Maester maester_orig, char *realm_name);
 
-void comAckFile (char protocol[320], Maester maester_orig, char *realm_name, char *response);
+void commAckFile (char protocol[320], Maester maester_orig, char *realm_name, char *response);
 
-void comMd5Ack (char protocol[320], Maester maester_orig, char *realm_name, int successful);
+void commMd5Ack (char protocol[320], Maester maester_orig, char *realm_name, int successful);
 
-void comNACK (char protocol[320], char *realm_name);
+void commNACK (char protocol[320], char *realm_name);
 
 #endif
 

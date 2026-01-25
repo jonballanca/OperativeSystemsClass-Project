@@ -324,7 +324,7 @@ void getWordFromProtocol (char *data, int word_pos, char **word) {
     free(buffer);
 }
 
-Protocol stringToProtocol (char *buffer) {
+/*Protocol stringToProtocol (char *buffer) {
     Protocol protocol;
     int i = 0;
 
@@ -349,6 +349,37 @@ Protocol stringToProtocol (char *buffer) {
     }
 
     protocol.checksum = (uint16_t)((buffer[1 + ORIGIN_SIZE + DESTINATION_SIZE + 2 + (int)protocol.data_length] << 8) | buffer[1 + ORIGIN_SIZE + DESTINATION_SIZE + 2 + DATA_MAX_SIZE + 1]);
+
+    return protocol;
+}*/
+
+Protocol stringToProtocol (char *buffer) {
+    Protocol protocol;
+    int i;
+    int checksum_pos;
+
+    protocol.type = buffer[0];
+
+    for (i = 0; i < ORIGIN_SIZE; i++) {
+        protocol.origin[i] = buffer[TYPE_SIZE + i];
+    }
+
+    for (i = 0; i < DESTINATION_SIZE; i++) {
+        protocol.destination[i] = buffer[TYPE_SIZE + ORIGIN_SIZE + i];
+    }
+
+    protocol.data_length = (uint16_t)((buffer[TYPE_SIZE + ORIGIN_SIZE + DESTINATION_SIZE] << 8) | buffer[TYPE_SIZE + ORIGIN_SIZE + DESTINATION_SIZE + 1]);
+
+    for (i = 0; i < DATA_MAX_SIZE; i++) {
+        if (i < protocol.data_length) {
+            protocol.data[i] = buffer[TYPE_SIZE + ORIGIN_SIZE + DESTINATION_SIZE + DATALENGTH_SIZE + i];
+        } else {
+            protocol.data[i] = 0x00;
+        }
+    }
+
+    checksum_pos = TYPE_SIZE + ORIGIN_SIZE + DESTINATION_SIZE + DATALENGTH_SIZE + protocol.data_length;
+    protocol.checksum = (uint16_t)((buffer[checksum_pos] << 8) | buffer[checksum_pos + 1]);
 
     return protocol;
 }
@@ -458,7 +489,7 @@ void copyPadding (char protocol[320], int data_length) {
 
 /*********************************************** PROTOCOLS ***********************************************/
 
-void comAllianceRequest (char protocol[320], Maester maester_orig, char *realm_name, char *sigil_path) {
+void commAllianceRequest (char protocol[320], Maester maester_orig, char *realm_name, char *sigil_path) {
     char ip_string[INET_ADDRSTRLEN];
     char *data = NULL;
     char *sigil_name;
@@ -507,7 +538,7 @@ void comAllianceRequest (char protocol[320], Maester maester_orig, char *realm_n
     free(file_size);
 }
 
-void comSigilTransfer (char protocol[320], Maester maester_orig, char *realm_name, char *data, int data_length) {
+void commSigilTransfer (char protocol[320], Maester maester_orig, char *realm_name, char *data, int data_length) {
     char ip_string[INET_ADDRSTRLEN];
     int i;
     int data_start;
@@ -540,7 +571,7 @@ void comSigilTransfer (char protocol[320], Maester maester_orig, char *realm_nam
     copyPadding(protocol, data_length);
 }
 
-void comAllianceResponse (char protocol[320], Maester maester_orig, char *realm_name, char *decision) {
+void commAllianceResponse (char protocol[320], Maester maester_orig, char *realm_name, char *decision) {
     char ip_string[INET_ADDRSTRLEN];
     char *data;
     int data_length;
@@ -575,7 +606,7 @@ void comAllianceResponse (char protocol[320], Maester maester_orig, char *realm_
     free(data);
 }
 
-void comProductsRequest (char protocol[320], Maester maester_orig, char *realm_name) {
+void commProductsRequest (char protocol[320], Maester maester_orig, char *realm_name) {
     char ip_string[INET_ADDRSTRLEN];
     int data_length;
 
@@ -600,7 +631,7 @@ void comProductsRequest (char protocol[320], Maester maester_orig, char *realm_n
     copyPadding(protocol, data_length);
 }
 
-void comProductsResponse (char protocol[320], Maester maester_orig, char *realm_name, char *file_path) {
+void commProductsResponse (char protocol[320], Maester maester_orig, char *realm_name, char *file_path) {
     char ip_string[INET_ADDRSTRLEN];
     char *data;
     char *file_size;
@@ -644,7 +675,7 @@ void comProductsResponse (char protocol[320], Maester maester_orig, char *realm_
     free(mdsum);
 }
 
-void comProductTransfer (char protocol[320], Maester maester_orig, char *realm_name, char *data, int data_length) {
+void commProductTransfer (char protocol[320], Maester maester_orig, char *realm_name, char *data, int data_length) {
     char ip_string[INET_ADDRSTRLEN];
     int i;
     int data_start;
@@ -677,7 +708,7 @@ void comProductTransfer (char protocol[320], Maester maester_orig, char *realm_n
     copyPadding(protocol, data_length);
 }
 
-void comOrderRequest (char protocol[320], Maester maester_orig, char *realm_name, char *file_path) {
+void commOrderRequest (char protocol[320], Maester maester_orig, char *realm_name, char *file_path) {
     char ip_string[INET_ADDRSTRLEN];
     char *data;
     char *file_size;
@@ -721,7 +752,7 @@ void comOrderRequest (char protocol[320], Maester maester_orig, char *realm_name
     free(mdsum);
 }
 
-void comOrderTransfer (char protocol[320], Maester maester_orig, char *realm_name, char *data, int data_length) {
+void commOrderTransfer (char protocol[320], Maester maester_orig, char *realm_name, char *data, int data_length) {
     char ip_string[INET_ADDRSTRLEN];
     int i;
     int data_start;
@@ -754,7 +785,7 @@ void comOrderTransfer (char protocol[320], Maester maester_orig, char *realm_nam
     copyPadding(protocol, data_length);
 }
 
-void comOrderResponse (char protocol[320], Maester maester_orig, char *realm_name, char *response) {
+void commOrderResponse (char protocol[320], Maester maester_orig, char *realm_name, char *response) {
     char ip_string[INET_ADDRSTRLEN];
     int data_length;
 
@@ -779,7 +810,7 @@ void comOrderResponse (char protocol[320], Maester maester_orig, char *realm_nam
     copyPadding(protocol, data_length);
 }
 
-void comDisconnection (char protocol[320], Maester maester_orig, char *realm_name) {
+void commDisconnection (char protocol[320], Maester maester_orig, char *realm_name) {
     char ip_string[INET_ADDRSTRLEN];
     int data_length;
 
@@ -808,7 +839,7 @@ void comDisconnection (char protocol[320], Maester maester_orig, char *realm_nam
 /*********************************************** ERRORS ***********************************************/
 
 
-void comUnknownRealm (char protocol[320], Maester maester_orig, char *realm_name) {
+void commUnknownRealm (char protocol[320], Maester maester_orig, char *realm_name) {
     char ip_string[INET_ADDRSTRLEN];
     char *data;
     int data_length;
@@ -843,7 +874,7 @@ void comUnknownRealm (char protocol[320], Maester maester_orig, char *realm_name
     free(data);
 }
 
-void comNoAlliance (char protocol[320], Maester maester_orig, char *realm_name) {
+void commNoAlliance (char protocol[320], Maester maester_orig, char *realm_name) {
     char ip_string[INET_ADDRSTRLEN];
     int data_length;
 
@@ -868,7 +899,7 @@ void comNoAlliance (char protocol[320], Maester maester_orig, char *realm_name) 
     copyPadding(protocol, data_length);
 }
 
-void comAckFile (char protocol[320], Maester maester_orig, char *realm_name, char *response) {
+void commAckFile (char protocol[320], Maester maester_orig, char *realm_name, char *response) {
     char ip_string[INET_ADDRSTRLEN];
     char *data;
     int data_length;
@@ -903,7 +934,7 @@ void comAckFile (char protocol[320], Maester maester_orig, char *realm_name, cha
     free(data);
 }
 
-void comMd5Ack (char protocol[320], Maester maester_orig, char *realm_name, int successful) {
+void commMd5Ack (char protocol[320], Maester maester_orig, char *realm_name, int successful) {
     char ip_string[INET_ADDRSTRLEN];
     char *data;
     int data_length;
@@ -943,7 +974,7 @@ void comMd5Ack (char protocol[320], Maester maester_orig, char *realm_name, int 
     free(data);
 }
 
-void comNACK (char protocol[320], char *realm_name) {
+void commNACK (char protocol[320], char *realm_name) {
     int data_length;
 
     // Type
