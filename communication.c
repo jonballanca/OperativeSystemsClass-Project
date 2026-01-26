@@ -35,7 +35,56 @@ void initializeReception (ReceptionInfo *reception, Inventory inventory, char *a
 
     reception->list_mdsum = NULL;
 
+    reception->fd_file = -1;
+
     pthread_mutex_init(&reception->pledge_status_mutex, NULL);
+}
+
+int connectFileTranfer (char* destination_name, Maester maester) {
+    int error = -1;
+    int i = 0;
+    int route_exists = 0;
+    int default_pos = -1;
+
+    char *buffer;
+    char *buffer2;
+
+    for (i = 0; (i < maester.num_routes) && !route_exists; i++) {
+
+        buffer = (char*)malloc(sizeof(char)*(strlen(maester.routes[i].realm_name) + 1));
+        strcpy(buffer, maester.routes[i].realm_name);
+
+        buffer2 = (char*)malloc(sizeof(char)*(strlen(destination_name) + 1));
+        strcpy(buffer2, destination_name);
+        
+        convertToCapitalLetters(buffer);
+        convertToCapitalLetters(buffer2);
+
+        if (!strcmp(buffer, buffer2)) {
+            free(buffer);
+            buffer = NULL;
+            buffer = realloc(buffer, sizeof(char) * INET_ADDRSTRLEN);
+            inet_ntop(AF_INET, &maester.routes[i].ip, buffer, INET_ADDRSTRLEN);
+            
+            if ((strcmp("0.0.0.0", buffer)) /*&& (maester.routes[i].active != 0)*/) {
+                route_exists = 1;
+                error = openClientConn(maester.routes[i].ip, maester.routes[i].port);
+            }
+        } else if (!strcmp(maester.routes[i].realm_name, "DEFAULT")) {
+            default_pos = i;
+        }
+
+        free(buffer);
+        buffer = NULL;
+        free(buffer2);
+        buffer2 = NULL;
+    }
+
+    if (!route_exists) {
+        error = openClientConn(maester.routes[default_pos].ip, maester.routes[default_pos].port);
+    }
+
+    return error;
 }
 
 int sendProtocol(struct in_addr ip, int port, char *protocol) {
@@ -667,23 +716,9 @@ void receiveFileData (Protocol protocol, ReceptionInfo **reception, Maester *mae
     int port;
     char* realm_name;
 
-    char *debug_buf = NULL;
-    asprintf(&debug_buf, "[DEBUG RECEIVE] Before: bytes_received=%d, file_received=%p, protocol.data_length=%d\n", 
-             (*reception)->bytes_received, 
-             (void*)(*reception)->file_received,
-             protocol.data_length);
-    write(1, debug_buf, strlen(debug_buf));
-    free(debug_buf);
-
     addReceivedData(&(*reception)->file_received, &(*reception)->bytes_received, protocol.data, protocol.data_length);
-
-    asprintf(&debug_buf, "[DEBUG RECEIVE] After: bytes_received=%d, communication_filesize=%d\n", 
-             (*reception)->bytes_received,
-             (*reception)->communication_filesize);
-    write(1, debug_buf, strlen(debug_buf));
-    free(debug_buf);
     
-    if ((*reception)->bytes_received == (*reception)->communication_filesize) {
+    if ((*reception)->bytes_received >= (*reception)->communication_filesize) {
         printDoneReceiving((*reception)->receiving_file);
 
         getIpAndPortFromProtocol(protocol.origin, &ip, &port);
@@ -714,7 +749,7 @@ void receiveFileData (Protocol protocol, ReceptionInfo **reception, Maester *mae
     }
 }
 
-void handleHeaderReception (Protocol protocol, ReceptionInfo **reception, Maester maester, int receiving_type) {
+void handleHeaderReception (Protocol protocol, ReceptionInfo **reception, Maester maester, int receiving_type, int fd_client) {
     char protocol_send[PROTOCOL_SIZE];
     struct in_addr ip;
     int port;
@@ -752,7 +787,8 @@ void handleHeaderReception (Protocol protocol, ReceptionInfo **reception, Maeste
 
     commAckFile(protocol_send, maester, maester.realm_name, "OK");
     sendProtocol(ip, port, protocol_send);
-    //sendToRoute(protocol.destination, protocol, maester);
+
+    (*reception)->fd_file = fd_client;
     (*reception)->receiving_file = receiving_type;
     free(word);
     word = NULL;
@@ -821,7 +857,7 @@ void prepareSendingFile (int *file_size, int *fd, ReceptionInfo *reception, Maes
     free(file_size_str);
 }
 
-void manageReception (ReceptionInfo **reception, Protocol *protocol, Maester *maester, int flag) {
+void manageReception (ReceptionInfo **reception, Protocol *protocol, Maester *maester, int flag, int fd_client) {
     char protocol_send[PROTOCOL_SIZE];
     char* realm_name = NULL;
     char* word = NULL;
@@ -841,7 +877,7 @@ void manageReception (ReceptionInfo **reception, Protocol *protocol, Maester *ma
                 }
             }
 
-            handleHeaderReception(*protocol, reception, *maester, SENDING_SIGIL);
+            handleHeaderReception(*protocol, reception, *maester, SENDING_SIGIL, fd_client);
 
             //Envia RealmName SigilName FileSize MD5SUM
             getIpAndPortFromProtocol(protocol->origin, &ip, &port);
@@ -879,7 +915,8 @@ void manageReception (ReceptionInfo **reception, Protocol *protocol, Maester *ma
                 addPledgeStatus(*reception, REJECTED, realm_name);
 
                 changeTimedOut(realm_name, RESET_TIMED_OUT, maester);
-                showText("\nsends NACK\n");
+                printReset("\n[DEBUG PLEDGE] Late pledge response received. Sending NACK...\n");
+                printBold("$ ");
 
                 if (pledge_decision != NULL) {
                     free(pledge_decision);
@@ -941,7 +978,7 @@ void manageReception (ReceptionInfo **reception, Protocol *protocol, Maester *ma
             printReset("\n[DEBUG LIST PRODUCTS] Response received!");
             //printBold("$ ");
 
-            handleHeaderReception(*protocol, reception, *maester, SENDING_INVENTORY);
+            handleHeaderReception(*protocol, reception, *maester, SENDING_INVENTORY, fd_client);
 
             free(word);
             word = NULL;
@@ -952,7 +989,7 @@ void manageReception (ReceptionInfo **reception, Protocol *protocol, Maester *ma
             //printBold("$ ");
             break;
         case ORDER_REQUEST_TYPE:
-            handleHeaderReception(*protocol, reception, *maester, SENDING_TRADE);
+            handleHeaderReception(*protocol, reception, *maester, SENDING_TRADE, fd_client);
 
             getIpAndPortFromProtocol(protocol->origin, &ip, &port);
             getRealmNameFromIp(&realm_name, ip, port, maester);
@@ -1077,16 +1114,16 @@ void manageReception (ReceptionInfo **reception, Protocol *protocol, Maester *ma
         case NACK_TYPE:
             //D no ok
             if ((*reception)->response_confirmation) {
-                printReset("\nToo late to respond to this pledge! Alliance failed.\n");
+                printReset("\n[DEBUG PLEDGE] Too late to respond to this pledge! Alliance failed.\n");
                 (*reception)->response_confirmation = 0;
                 free((*reception)->pledge_decision);
                 (*reception)->pledge_decision = NULL;
                 free((*reception)->pledge_realm_name);
                 (*reception)->pledge_realm_name = NULL;
 
-                // Faltan cosas
+                printBold("$ ");
             } else {
-                printReset("Error detecting protocol frame.\n");
+                printReset("\n[DEBUG PROTOCOL] Error detecting protocol frame.\n");
             }
             break;
         default:

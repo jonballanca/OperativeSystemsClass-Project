@@ -180,8 +180,44 @@ int checkMD5SUM (/*char data[]*/) {
     return 1;       // Devuelva que el MD5SUM ha sido correcto
 }
 
+void calculateMD5SUM(char* file_name, char* buffer) {
+    int fd[2];
+    int status;
+    pid_t pid;
+    char* temp_buffer;
+    int i;
+    
+    pipe(fd);
+
+    pid = fork();
+    
+    if (pid == 0) {
+        // Hijo
+        close(fd[0]); 
+        dup2(fd[1], STDOUT_FILENO); 
+        close(fd[1]);
+        execlp("md5sum", "md5sum", file_name, NULL); 
+        exit(1);
+    } else {
+        // Padre
+        close(fd[1]);
+        temp_buffer = read_until(fd[0], ' ');
+        close(fd[0]);
+
+        i = 0;
+        while (temp_buffer[i] != '\0') {
+            buffer[i] = temp_buffer[i];
+            i = i + 1;
+        }
+        buffer[i] = '\0';
+        
+        free(temp_buffer);
+        waitpid(pid, &status, 0);
+    }
+}
+
 // Completado
-void calculateMD5SUM (char **sum) {
+/*void calculateMD5SUM (char **sum) {
     // Para la fase 2, esta función no se implementa. Lo que debería hacer esta función es crear un fork()
     // que puede "sacrificarse" para ejecutar el comando del sistema operativo que consigue este checksum.
     // También se deberian implementar pipes para poder comunicarse con el proceso padre y guardar el varlor obtenido.
@@ -192,7 +228,7 @@ void calculateMD5SUM (char **sum) {
     for (int i = 0; i < 32; i++) {
         (*sum)[i] = 0x00;
     }
-}
+}*/
 
 
 
@@ -511,7 +547,7 @@ void commAllianceRequest (char protocol[320], Maester maester_orig, char *realm_
     // Data formatting
     pathToName(sigil_path, &sigil_name);
     getFileSize(sigil_path, &file_size);
-    calculateMD5SUM(&mdsum);
+    calculateMD5SUM(sigil_path, mdsum);
 
         // Name length + sigil name length + file size + MD5SUM size + 3 x '&' + '\0'
     data = malloc(sizeof(uint8_t) * (strlen(maester_orig.realm_name) + strlen(sigil_name) + strlen(file_size) + 32 + 3 + 1));
@@ -651,7 +687,7 @@ void commProductsResponse (char protocol[320], Maester maester_orig, char *realm
 
     // Data formatting
     getFileSize(file_path, &file_size);
-    calculateMD5SUM(&mdsum);
+    calculateMD5SUM(file_path, mdsum);
 
     data = malloc(sizeof(uint8_t) * (strlen(file_path) + strlen(file_size) + 32 + 2 + 1));
     data[0] = '\0';
@@ -728,7 +764,7 @@ void commOrderRequest (char protocol[320], Maester maester_orig, char *realm_nam
 
     // Data formatting
     getFileSize(file_path, &file_size);
-    calculateMD5SUM(&mdsum);
+    calculateMD5SUM(file_path, &mdsum);
 
     data = malloc(sizeof(uint8_t) * (strlen(file_path) + strlen(file_size) + 32 + 2 + 1));
     data[0] = '\0';

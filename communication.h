@@ -74,10 +74,16 @@ typedef struct {
 
     int hop_bytes_sent;
     int hop_total_bytes;
+
+
+
+    int fd_file;
 } ReceptionInfo;
 
 
 void initializeReception (ReceptionInfo *reception, Inventory inventory, char *argument);
+
+int connectFileTranfer (char* destination_name, Maester maester);
 
 int sendProtocol(struct in_addr ip, int port, char *protocol);
 
@@ -115,6 +121,6 @@ void getIpAndPortFromRealm (Maester maester, char *realm_name, struct in_addr *i
 
 void prepareSendingFile (int *file_size, int *fd, ReceptionInfo *reception, Maester maester, int sending_type);
 
-void manageReception (ReceptionInfo **reception, Protocol *protocol, Maester *maester, int flag);
+void manageReception (ReceptionInfo **reception, Protocol *protocol, Maester *maester, int flag, int fd_client);
 
 #endif

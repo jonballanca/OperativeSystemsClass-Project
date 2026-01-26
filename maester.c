@@ -288,8 +288,8 @@ void pledge (char *realm_name, char *sigil_path, ReceptionInfo *reception) {
         buffer_global = NULL;
 
         timer_flag = 1;
-        alarm(120);
-        //alarm(2);
+        //alarm(120);
+        alarm(2);
 
         while ((reception->pledge_flag == 1) && (timer_flag == 1));
         
@@ -580,9 +580,10 @@ void exitMaester (Inventory* inventory) {
 
 // Thread
 void* receiveClients (void* arg) {
-    ReceptionInfo* reception = (ReceptionInfo*)arg;
+    ReceptionInfo* reception = (ReceptionInfo*) arg;
     Protocol protocol_struct;
     char protocol[PROTOCOL_SIZE];
+    char protocol_send[PROTOCOL_SIZE];
     char ip_string[INET_ADDRSTRLEN];
     int flag = 0;
     int error = 0;
@@ -603,17 +604,22 @@ void* receiveClients (void* arg) {
         
         inet_ntop(AF_INET, &client_addr.sin_addr, ip_string, INET_ADDRSTRLEN);
 
-        read(fd_client, protocol, PROTOCOL_SIZE);
-
-        protocol_struct = stringToProtocol(protocol);
-
-        error = checkDestinationRequest(protocol, protocol_struct, client_addr, &maester, &reception);
-
-        if (error != -1) {
-            manageReception(&reception, &protocol_struct, &maester, flag);
+        error = read(fd_client, protocol, PROTOCOL_SIZE);
+        if (error <= 0) {
+            error = 0;
+            protocol_struct.type = NACK_TYPE;
+        } else {
+            error = 0;
+            protocol_struct = stringToProtocol(protocol);
+            error = checkDestinationRequest(protocol, protocol_struct, client_addr, &maester, &reception);
         }
 
+        if (error != -1) {
+            manageReception(&reception, &protocol_struct, &maester, flag, fd_client);
+        }
+        
         close(fd_client);
+
     } while (1);
     
     return NULL;
@@ -634,6 +640,8 @@ void* sendFiles (void* arg) {
     int remaining_bytes = 0;
     int file_size = 0;
     
+    int fd_connection = -1;
+    
     do {
         if ((reception->send_listproducts == 1) || (reception->send_sigil == 1) || (reception->send_trade == 1)) {
             if (!file_opened) {
@@ -646,12 +654,15 @@ void* sendFiles (void* arg) {
                 }
 
                 getIpAndPortFromRealm(maester, reception->realm_name_sending, &ip, &port);
+                //showText("Gets here 1\n");
+                //fd_connection = openClientConn (ip, port);
+                //showText("Gets here 2\n");
                 file_opened = 1;
             }
             
             if ((reception->bytes_sent < file_size) && file_opened) {
                 remaining_bytes = file_size - reception->bytes_sent;
-                
+                //showText("Sending...\n");
                 if (DATA_MAX_SIZE <= remaining_bytes) {
                     bytes_read = read(fd, data, DATA_MAX_SIZE);
                     if (reception->send_listproducts == 1) {
@@ -661,9 +672,15 @@ void* sendFiles (void* arg) {
                     } else if (reception->send_trade == 1) {
                         commOrderTransfer(protocol, maester, reception->realm_name_sending, data, bytes_read);
                     }
+                    
+                    //showText("Gets here 3\n");
+                    //write(fd_connection, protocol, PROTOCOL_SIZE);
+                    //showText("Gets here 4\n");
+
                     sendToRoute(reception->realm_name_sending, protocol, maester);
                     reception->bytes_sent += bytes_read;
                 } else {
+                    //showText("Finished sending\n");
                     temp_data = malloc(sizeof(char) * remaining_bytes);
                     bytes_read = read(fd, temp_data, remaining_bytes);
                     if (reception->send_listproducts == 1) {
@@ -675,12 +692,15 @@ void* sendFiles (void* arg) {
                     } else if (reception->send_trade == 1) {
                         commOrderTransfer(protocol, maester, reception->realm_name_sending, temp_data, bytes_read);
                     }
-
+                    //showText("Gets here 5\n");
+                    //write(fd_connection, protocol, PROTOCOL_SIZE);
+                    //showText("Gets here 6\n");
                     sendToRoute(reception->realm_name_sending, protocol, maester);
                     reception->bytes_sent += bytes_read;
                     free(temp_data);
                     
                     close(fd);
+                    close(fd_connection);
                     file_opened = 0;
                     
                     reception->send_listproducts = 0;

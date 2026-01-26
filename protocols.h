@@ -61,6 +61,9 @@
 #define CHECKSUM_TYPE 0x32
 #define NACK_TYPE 0x69
 
+#define MD5SUM_SUCCESSFUL 1
+#define MD5SUM_FAILED 0
+
 typedef struct Protocol {
     uint8_t type;
     char origin[ORIGIN_SIZE];
@@ -91,8 +94,7 @@ int calculateCheckSum (Protocol protocol);
 
 int checkMD5SUM (/*char data[]*/);
 
-void calculateMD5SUM (char **sum);
-
+void calculateMD5SUM(char* file_name, char* buffer);
 
 
 /*********************************************** PROTOCOL HELPERS ***********************************************/
