@@ -48,6 +48,7 @@ typedef struct {
     char* inventory_file_name;
     char* sigil_file_path;
     char* trade_file_path;
+    char* header_md5sum;
 
     int pledge_flag;
     int pledge_pending;
@@ -69,8 +70,6 @@ typedef struct {
     int bytes_received;
     char *realm_name_sending;
     char *file_received;
-
-    char *list_mdsum;
 
     int hop_bytes_sent;
     int hop_total_bytes;

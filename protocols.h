@@ -115,6 +115,14 @@ void getWordFromProtocol (char *data, int word_pos, char **word);
 
 Protocol stringToProtocol (char *buffer);
 
+
+
+
+
+
+
+int calculateChecksumFromString(char *buffer, int data_length);
+
 /*********************************************** PROTOCOLS ***********************************************/
 
 void commAllianceRequest (char protocol[320], Maester maester_orig, char *realm_name, char *sigil_path);

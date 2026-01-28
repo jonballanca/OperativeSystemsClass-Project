@@ -288,8 +288,8 @@ void pledge (char *realm_name, char *sigil_path, ReceptionInfo *reception) {
         buffer_global = NULL;
 
         timer_flag = 1;
-        //alarm(120);
-        alarm(2);
+        alarm(120);
+        //alarm(2);
 
         while ((reception->pledge_flag == 1) && (timer_flag == 1));
         
@@ -605,12 +605,15 @@ void* receiveClients (void* arg) {
         inet_ntop(AF_INET, &client_addr.sin_addr, ip_string, INET_ADDRSTRLEN);
 
         error = read(fd_client, protocol, PROTOCOL_SIZE);
+        
         if (error <= 0) {
             error = 0;
             protocol_struct.type = NACK_TYPE;
         } else {
             error = 0;
+
             protocol_struct = stringToProtocol(protocol);
+
             error = checkDestinationRequest(protocol, protocol_struct, client_addr, &maester, &reception);
         }
 

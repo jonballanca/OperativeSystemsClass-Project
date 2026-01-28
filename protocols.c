@@ -156,23 +156,24 @@ int calculateCheckSum (Protocol protocol) {
     int i = 0;
     int checksum = 0;
 
-    checksum += protocol.type;
+    checksum += (unsigned char)protocol.type;
 
     for (i = 0; i < ORIGIN_SIZE; i++) {
-        checksum += protocol.origin[i];
+        checksum += (unsigned char)protocol.origin[i];
     }
 
     for (i = 0; i < DESTINATION_SIZE; i++) {
-        checksum += protocol.destination[i];
+        checksum += (unsigned char)protocol.destination[i];
     }
 
-    checksum += protocol.data_length;
+    checksum += (unsigned char)(protocol.data_length >> 8);
+    checksum += (unsigned char)(protocol.data_length & 0xFF);
 
-    for (i = 0; i < DATA_MAX_SIZE; i++) {
-        checksum += protocol.data[i];
+    for (i = 0; i < protocol.data_length; i++) {
+        checksum += (unsigned char)protocol.data[i];
     }
 
-    return checksum;
+    return checksum % 65536;
 }
 
 int checkMD5SUM (/*char data[]*/) {
@@ -180,7 +181,7 @@ int checkMD5SUM (/*char data[]*/) {
     return 1;       // Devuelva que el MD5SUM ha sido correcto
 }
 
-void calculateMD5SUM(char* file_name, char* buffer) {
+void calculateMD5SUM (char* file_name, char* buffer) {
     int fd[2];
     int status;
     pid_t pid;
@@ -201,7 +202,7 @@ void calculateMD5SUM(char* file_name, char* buffer) {
     } else {
         // Padre
         close(fd[1]);
-        temp_buffer = read_until(fd[0], ' ');
+        temp_buffer = readUntil(fd[0], ' ');
         close(fd[0]);
 
         i = 0;
@@ -213,6 +214,51 @@ void calculateMD5SUM(char* file_name, char* buffer) {
         
         free(temp_buffer);
         waitpid(pid, &status, 0);
+    }
+}
+
+void calculateReceivingMD5SUM (char* data, int data_length, char* buffer) {
+    int fd_pipe[2];
+    int fd_temp;
+    int status;
+    pid_t pid;
+    char* temp_buffer;
+    char* temp_file_path;
+    int i;
+    
+    temp_file_path = malloc(sizeof(char) * 50);
+    sprintf(temp_file_path, "TEMP_%d.txt", getpid());
+    
+    fd_temp = open(temp_file_path, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+    write(fd_temp, data, data_length);
+    close(fd_temp);
+    
+    pipe(fd_pipe);
+    pid = fork();
+    
+    if (pid == 0) {
+        close(fd_pipe[0]); 
+        dup2(fd_pipe[1], STDOUT_FILENO); 
+        close(fd_pipe[1]);
+        execlp("md5sum", "md5sum", temp_file_path, NULL); 
+        exit(1);
+    } else {
+        close(fd_pipe[1]);
+        temp_buffer = readUntil(fd_pipe[0], ' ');
+        close(fd_pipe[0]);
+
+        i = 0;
+        while (temp_buffer[i] != '\0') {
+            buffer[i] = temp_buffer[i];
+            i = i + 1;
+        }
+        buffer[i] = '\0';
+        
+        free(temp_buffer);
+        waitpid(pid, &status, 0);
+        
+        unlink(temp_file_path);
+        free(temp_file_path);
     }
 }
 
@@ -392,7 +438,6 @@ void getWordFromProtocol (char *data, int word_pos, char **word) {
 Protocol stringToProtocol (char *buffer) {
     Protocol protocol;
     int i;
-    int checksum_pos;
 
     protocol.type = buffer[0];
 
@@ -404,7 +449,8 @@ Protocol stringToProtocol (char *buffer) {
         protocol.destination[i] = buffer[TYPE_SIZE + ORIGIN_SIZE + i];
     }
 
-    protocol.data_length = (uint16_t)((buffer[TYPE_SIZE + ORIGIN_SIZE + DESTINATION_SIZE] << 8) | buffer[TYPE_SIZE + ORIGIN_SIZE + DESTINATION_SIZE + 1]);
+    protocol.data_length = (uint16_t)(((unsigned char)buffer[TYPE_SIZE + ORIGIN_SIZE + DESTINATION_SIZE] << 8) | 
+                                       (unsigned char)buffer[TYPE_SIZE + ORIGIN_SIZE + DESTINATION_SIZE + 1]);
 
     for (i = 0; i < DATA_MAX_SIZE; i++) {
         if (i < protocol.data_length) {
@@ -414,8 +460,7 @@ Protocol stringToProtocol (char *buffer) {
         }
     }
 
-    checksum_pos = TYPE_SIZE + ORIGIN_SIZE + DESTINATION_SIZE + DATALENGTH_SIZE + protocol.data_length;
-    protocol.checksum = (uint16_t)((buffer[checksum_pos] << 8) | buffer[checksum_pos + 1]);
+    protocol.checksum = (uint16_t)(((unsigned char) buffer[318] << 8) | (unsigned char) buffer[319]);
 
     return protocol;
 }
@@ -495,32 +540,57 @@ int copyDataToProtocol (char protocol[320], char *data) {
 
 void copyCalculateChecksum (char protocol[320], int data_length) {
     int i = 0;
-    int limit = 0;
     int result = 0;
     u_int16_t checksum;
 
+    result += protocol[0];
 
-    limit = TYPE_SIZE + ORIGIN_SIZE + DESTINATION_SIZE + DATALENGTH_SIZE + data_length;
+    for (i = 0; i < ORIGIN_SIZE; i++) {
+        result += (unsigned char)protocol[TYPE_SIZE + i];
+    }
 
-    for (i = 0; i < limit; i++) {
-        result += protocol[i];
+    for (i = 0; i < DESTINATION_SIZE; i++) {
+        result += (unsigned char)protocol[TYPE_SIZE + ORIGIN_SIZE + i];
+    }
+
+    result += (unsigned char)protocol[TYPE_SIZE + ORIGIN_SIZE + DESTINATION_SIZE];
+    result += (unsigned char)protocol[TYPE_SIZE + ORIGIN_SIZE + DESTINATION_SIZE + 1];
+
+    for (i = 0; i < data_length; i++) {
+        result += (unsigned char)protocol[TYPE_SIZE + ORIGIN_SIZE + DESTINATION_SIZE + DATALENGTH_SIZE + i];
     }
 
     checksum = (u_int16_t) result;
-
-    protocol[limit] = (checksum >> 8) & 0xFF;
-    protocol[limit + 1] = checksum & 0xFF;
+    
+    protocol[318] = (checksum >> 8) & 0xFF;
+    protocol[319] = checksum & 0xFF;
 }
 
 void copyPadding (char protocol[320], int data_length) {
     int i = 0;
 
-    i = TYPE_SIZE + ORIGIN_SIZE + DESTINATION_SIZE + DATALENGTH_SIZE + data_length + CHECKSUM_SIZE;
+    i = TYPE_SIZE + ORIGIN_SIZE + DESTINATION_SIZE + DATALENGTH_SIZE + data_length;
 
-    while (i < PROTOCOL_SIZE) {
+    while (i < 318) {
         protocol[i] = '\0';
         i++;
     }
+}
+
+
+
+
+
+
+int calculateChecksumFromString(char *buffer, int data_length) {
+    int i = 0;
+    int checksum = 0;
+    
+    for (i = 0; i < 318; i++) {
+        checksum += (unsigned char)buffer[i];
+    }
+    
+    return checksum % 65536;
 }
 
 /*********************************************** PROTOCOLS ***********************************************/
@@ -530,7 +600,7 @@ void commAllianceRequest (char protocol[320], Maester maester_orig, char *realm_
     char *data = NULL;
     char *sigil_name;
     char *file_size = 0;
-    char *mdsum;
+    char mdsum[33];
     int data_length;
 
     inet_ntop(AF_INET, &maester_orig.ip, ip_string, sizeof(ip_string));
@@ -561,7 +631,7 @@ void commAllianceRequest (char protocol[320], Maester maester_orig, char *realm_
     strcat(data, mdsum);
 
     // Data + datalength
-    data_length = copyDataToProtocol(protocol, data);
+    data_length = copyDataToProtocol(protocol, data);;
 
     // Checksum
     copyCalculateChecksum(protocol, data_length);
@@ -671,7 +741,7 @@ void commProductsResponse (char protocol[320], Maester maester_orig, char *realm
     char ip_string[INET_ADDRSTRLEN];
     char *data;
     char *file_size;
-    char *mdsum;
+    char mdsum[33];
     int data_length;
 
     inet_ntop(AF_INET, &maester_orig.ip, ip_string, sizeof(ip_string));
@@ -748,7 +818,7 @@ void commOrderRequest (char protocol[320], Maester maester_orig, char *realm_nam
     char ip_string[INET_ADDRSTRLEN];
     char *data;
     char *file_size;
-    char *mdsum;
+    char mdsum[33];
     int data_length;
 
     inet_ntop(AF_INET, &maester_orig.ip, ip_string, sizeof(ip_string));
