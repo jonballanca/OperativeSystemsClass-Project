@@ -229,6 +229,7 @@ void calculateReceivingMD5SUM (char* data, int data_length, char* buffer) {
     temp_file_path = malloc(sizeof(char) * 50);
     sprintf(temp_file_path, "TEMP_%d.txt", getpid());
     
+    // Write data to temp file
     fd_temp = open(temp_file_path, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
     write(fd_temp, data, data_length);
     close(fd_temp);
@@ -237,13 +238,18 @@ void calculateReceivingMD5SUM (char* data, int data_length, char* buffer) {
     pid = fork();
     
     if (pid == 0) {
+        // Hijo
         close(fd_pipe[0]); 
         dup2(fd_pipe[1], STDOUT_FILENO); 
         close(fd_pipe[1]);
         execlp("md5sum", "md5sum", temp_file_path, NULL); 
         exit(1);
     } else {
+        // Padre
         close(fd_pipe[1]);
+        
+        waitpid(pid, &status, 0);
+        
         temp_buffer = readUntil(fd_pipe[0], ' ');
         close(fd_pipe[0]);
 
@@ -255,7 +261,6 @@ void calculateReceivingMD5SUM (char* data, int data_length, char* buffer) {
         buffer[i] = '\0';
         
         free(temp_buffer);
-        waitpid(pid, &status, 0);
         
         unlink(temp_file_path);
         free(temp_file_path);
@@ -778,7 +783,6 @@ void commProductsResponse (char protocol[320], Maester maester_orig, char *realm
 
     free(data);
     free(file_size);
-    free(mdsum);
 }
 
 void commProductTransfer (char protocol[320], Maester maester_orig, char *realm_name, char *data, int data_length) {
@@ -855,7 +859,6 @@ void commOrderRequest (char protocol[320], Maester maester_orig, char *realm_nam
 
     free(data);
     free(file_size);
-    free(mdsum);
 }
 
 void commOrderTransfer (char protocol[320], Maester maester_orig, char *realm_name, char *data, int data_length) {

@@ -43,6 +43,7 @@ typedef struct {
     RealmsStock realms_stock;
 
     pthread_mutex_t pledge_status_mutex;
+    pthread_mutex_t mutex_sending_vars;
 
     char* list_products_rl;         // El nombre del realm cuya lista de productos queremos
     char* inventory_file_name;
@@ -74,8 +75,6 @@ typedef struct {
     int hop_bytes_sent;
     int hop_total_bytes;
 
-
-
     int fd_file;
 } ReceptionInfo;
 
@@ -105,10 +104,6 @@ int checkTradeInventory(ReceptionInfo *reception, char *realm_name);
 Inventory getRealmInventory(ReceptionInfo *reception, char *realm_name);
 
 void processAllianceResponse (char data[], char** pledge_decision, char** realm_name);
-
-void sendNACK ();
-
-void sendACK ();
 
 int getIfResponseType (Protocol protocol);
 

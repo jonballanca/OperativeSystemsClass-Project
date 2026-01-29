@@ -38,6 +38,7 @@ void initializeReception (ReceptionInfo *reception, Inventory inventory, char *a
     reception->fd_file = -1;
 
     pthread_mutex_init(&reception->pledge_status_mutex, NULL);
+    pthread_mutex_init(&reception->mutex_sending_vars, NULL);
 }
 
 int connectFileTranfer (char* destination_name, Maester maester) {
@@ -396,14 +397,6 @@ void processAllianceResponse (char data[], char** pledge_decision, char** realm_
     (*realm_name)[j] = '\0';
 }
 
-void sendNACK () {
-
-}
-
-void sendACK () {
-
-}
-
 int getIfResponseType (Protocol protocol) {
     int response_type = 1;
 
@@ -436,24 +429,42 @@ int getIfResponseType (Protocol protocol) {
     return response_type;
 }
 
+int checkChecksum(Protocol *protocol) {
+    uint16_t calculated_checksum = 0;
+    uint16_t received_checksum = 0;
+    
+    received_checksum = protocol->checksum;
+    
+    calculated_checksum = (uint16_t)calculateCheckSum(*protocol);
+    
+    if (calculated_checksum == received_checksum) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
 int checkDestinationRequest (char protocol_string[PROTOCOL_SIZE], Protocol protocol, struct sockaddr_in client_addr, Maester *maester, ReceptionInfo **reception) {
-    int checksum = 0;
     int error = 0;
     int previous_bytes_sent = 0;
     char *destination_name;
     char *upper_case_one;
     char *upper_case_two;
     char *buffer = NULL;
+    char *protocol_send[PROTOCOL_SIZE];
+    struct in_addr ip;
+    int port;
 
     if (getIfResponseType(protocol)) {
         error = 0;
         return error;
     }
 
-    checksum = calculateCheckSum(protocol);
+    getIpAndPortFromProtocol(protocol.origin, &ip, &port);
 
-    if (!checksum) {
-        sendNACK();
+    if (!checkChecksum(&protocol)) {
+        commNACK(protocol_send, maester->realm_name);
+        sendProtocol(ip, port, protocol_send);
         error = 1;
         return error;
     }
@@ -468,7 +479,8 @@ int checkDestinationRequest (char protocol_string[PROTOCOL_SIZE], Protocol proto
 
     if (!strcmp(upper_case_one, upper_case_two)) {
         // El destino es este maester
-        sendACK(protocol);
+        //commAckFile(protocol_send, *maester, destination_name, "OK");
+        //sendProtocol(ip, port, protocol_send);
     } else {
         // El destino no es este maester
         if (protocol.type == ALLIANCE_REQUEST_TYPE) {
@@ -726,16 +738,16 @@ void receiveFileData (Protocol protocol, ReceptionInfo **reception, Maester *mae
         getIpAndPortFromProtocol(protocol.origin, &ip, &port);
         getRealmNameFromIp(&realm_name, ip, port, maester);
 
-        calculateReceivingMD5SUM((*reception)->file_received, (*reception)->bytes_received, calculated_md5sum);
+        calculateReceivingMD5SUM((*reception)->file_received, (*reception)->communication_filesize, calculated_md5sum);
 
-        char *buffer;
+        /*char *buffer;
         asprintf(&buffer, "\n\nCalculated md5sum checksum: %s\n\n", calculated_md5sum);
         write(1, buffer, strlen(buffer));
         free(buffer);
 
         asprintf(&buffer, "\n\nReceived md5sum checksum: %s\n\n", (*reception)->header_md5sum);
         write(1, buffer, strlen(buffer));
-        free(buffer);
+        free(buffer);*/
         
         if (!strcmp(calculated_md5sum, (*reception)->header_md5sum)) {
             commMd5Ack(protocol_send, *maester, realm_name, MD5SUM_SUCCESSFUL);
@@ -753,7 +765,9 @@ void receiveFileData (Protocol protocol, ReceptionInfo **reception, Maester *mae
                 printBold("$ ");
             }
         } else {
+            printReset("\n[DEBUG PROTOCOL] The MD5SUM checksum of the received file has failed.\n");
             commMd5Ack(protocol_send, *maester, realm_name, MD5SUM_FAILED);
+            (*reception)->pledge_pending = 0;
         }
         sendProtocol(ip, port, protocol_send);
 
@@ -837,6 +851,7 @@ void handleAckConfirmation (Protocol protocol, ReceptionInfo **reception) {
 
     getWordFromProtocol(protocol.data, REALM_NAME_WORD, &word);
 
+    pthread_mutex_lock(&(*reception)->mutex_sending_vars);
     switch ((*reception)->sending_file) {
         case SENDING_INVENTORY:
             // Hay que enviar fichero de list product
@@ -854,6 +869,7 @@ void handleAckConfirmation (Protocol protocol, ReceptionInfo **reception) {
         default:
             break;
     }
+    pthread_mutex_unlock(&(*reception)->mutex_sending_vars);
 
     (*reception)->realm_name_sending = realloc((*reception)->realm_name_sending, sizeof(char) * (strlen(word) + 1));
     strcpy((*reception)->realm_name_sending, word);
@@ -880,21 +896,6 @@ void prepareSendingFile (int *file_size, int *fd, ReceptionInfo *reception, Maes
     free(file_size_str);
 }
 
-int checkChecksum(Protocol *protocol) {
-    uint16_t calculated_checksum = 0;
-    uint16_t received_checksum = 0;
-    
-    received_checksum = protocol->checksum;
-    
-    calculated_checksum = (uint16_t)calculateCheckSum(*protocol);
-    
-    if (calculated_checksum == received_checksum) {
-        return 1;
-    } else {
-        return 0;
-    }
-}
-
 void manageReception (ReceptionInfo **reception, Protocol *protocol, Maester *maester, int flag, int fd_client) {
     char protocol_send[PROTOCOL_SIZE];
     char* realm_name = NULL;
@@ -905,10 +906,6 @@ void manageReception (ReceptionInfo **reception, Protocol *protocol, Maester *ma
     struct in_addr ip;
     int port;
     int correct_checksum = 0;
-
-
-    uint16_t calculated_checksum;
-    calculated_checksum = (uint16_t)calculateCheckSum(*protocol);
 
     if (!checkChecksum(protocol) && (protocol->type != NACK_TYPE)) {
         //handleIncorrectChecksum(reception, *protocol);
@@ -1071,7 +1068,9 @@ void manageReception (ReceptionInfo **reception, Protocol *protocol, Maester *ma
                 (*reception)->trade_file_path = NULL;
             }
 
+            pthread_mutex_lock(&(*reception)->mutex_sending_vars);
             (*reception)->send_trade = 0;
+            pthread_mutex_unlock(&(*reception)->mutex_sending_vars);
 
             printBold("$ ");
 
@@ -1140,15 +1139,18 @@ void manageReception (ReceptionInfo **reception, Protocol *protocol, Maester *ma
 
             getWordFromProtocol(protocol->data, MD5SUM_CONFIRMATION_WORD, &word);
             if (!strcmp(word, "CHECK_OK")) {
-                printReset("\n[DEBUG PROTOCOL] Successful!\n");
+                printReset("\n[DEBUG PROTOCOL] MD5SUM Successful!\n");
+                printBold("$ ");
                 if ((*reception)->sending_file == SENDING_SIGIL) {
+                    printReset("[DEBUG PLEDGE] Still waiting for response...\n");
                     getIpAndPortFromProtocol(protocol->origin, &ip, &port);
                     getRealmNameFromIp(&realm_name, ip, port, maester);
                     addPledgeStatus(*reception, PENDING, realm_name);
                     free(realm_name);
                 }
             } else if (!strcmp(word, "CHECK_KO")) {
-                printReset("\n[DEBUG PROTOCOL] The MD5SUM checksum failed.\n");
+                (*reception)->pledge_flag = 0;
+                printReset("\n[DEBUG PROTOCOL] The MD5SUM checksum that the receiver calculated has failed.\n");
             } else {
                 // Send 0x69
             }

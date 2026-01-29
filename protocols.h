@@ -96,6 +96,8 @@ int checkMD5SUM (/*char data[]*/);
 
 void calculateMD5SUM(char* file_name, char* buffer);
 
+void calculateReceivingMD5SUM (char* data, int data_length, char* buffer);
+
 
 /*********************************************** PROTOCOL HELPERS ***********************************************/
 

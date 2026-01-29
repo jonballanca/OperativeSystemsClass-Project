@@ -325,20 +325,6 @@ void pledgeRespond(char* realm_name, char* decision, struct in_addr ip, int port
         reception->response_confirmation = 1;
         reception->pledge_decision = realloc(reception->pledge_decision, sizeof(char) * (strlen(decision) + 1));
         strcpy(reception->pledge_decision, decision);
-        /*if (!strcmp(decision, "ACCEPT")) {
-            asprintf(&buffer_global, RESET "Alliance with %s established.\n%s", realm_name, BOLD);
-            write(1, buffer_global, strlen(buffer_global));
-            free(buffer_global);
-            buffer_global = NULL;
-            addAlliance(realm_name, &maester, ip, port);
-            addPledgeStatus(reception, ACCEPTED, realm_name);
-        } else if (!strcmp(decision, "REJECT")) {
-            asprintf(&buffer_global, RESET "Alliance with %s was rejected.\n%s", realm_name, BOLD);
-            write(1, buffer_global, strlen(buffer_global));
-            free(buffer_global);
-            buffer_global = NULL;
-            addPledgeStatus(reception, REJECTED, realm_name);
-        }*/
     } else {
         asprintf(&buffer_global, RESET "Error connecting to socket.\n%s", BOLD);
         write(1, buffer_global, strlen(buffer_global));
@@ -622,6 +608,7 @@ void* receiveClients (void* arg) {
         }
         
         close(fd_client);
+        fd_client = -1;
 
     } while (1);
     
@@ -646,6 +633,7 @@ void* sendFiles (void* arg) {
     int fd_connection = -1;
     
     do {
+        pthread_mutex_lock(&reception->mutex_sending_vars);
         if ((reception->send_listproducts == 1) || (reception->send_sigil == 1) || (reception->send_trade == 1)) {
             if (!file_opened) {
                 if (reception->send_listproducts == 1) {
@@ -662,12 +650,14 @@ void* sendFiles (void* arg) {
                 //showText("Gets here 2\n");
                 file_opened = 1;
             }
+            pthread_mutex_unlock(&reception->mutex_sending_vars);
             
             if ((reception->bytes_sent < file_size) && file_opened) {
                 remaining_bytes = file_size - reception->bytes_sent;
                 //showText("Sending...\n");
                 if (DATA_MAX_SIZE <= remaining_bytes) {
                     bytes_read = read(fd, data, DATA_MAX_SIZE);
+                    pthread_mutex_lock(&reception->mutex_sending_vars);
                     if (reception->send_listproducts == 1) {
                         commProductTransfer(protocol, maester, reception->realm_name_sending, data, bytes_read);
                     } else if (reception->send_sigil == 1) {
@@ -675,10 +665,12 @@ void* sendFiles (void* arg) {
                     } else if (reception->send_trade == 1) {
                         commOrderTransfer(protocol, maester, reception->realm_name_sending, data, bytes_read);
                     }
+                    pthread_mutex_unlock(&reception->mutex_sending_vars);
                     
                     //showText("Gets here 3\n");
                     //write(fd_connection, protocol, PROTOCOL_SIZE);
                     //showText("Gets here 4\n");
+                    
 
                     sendToRoute(reception->realm_name_sending, protocol, maester);
                     reception->bytes_sent += bytes_read;
@@ -698,6 +690,7 @@ void* sendFiles (void* arg) {
                     //showText("Gets here 5\n");
                     //write(fd_connection, protocol, PROTOCOL_SIZE);
                     //showText("Gets here 6\n");
+
                     sendToRoute(reception->realm_name_sending, protocol, maester);
                     reception->bytes_sent += bytes_read;
                     free(temp_data);
@@ -707,9 +700,11 @@ void* sendFiles (void* arg) {
                     file_opened = 0;
                     
                     reception->send_listproducts = 0;
+                    pthread_mutex_lock(&reception->mutex_sending_vars);
                     reception->send_sigil = 0;
-                    //reception->send_trade = 0;
+                    reception->send_trade = 0;
                     reception->bytes_sent = 0;
+                    pthread_mutex_unlock(&reception->mutex_sending_vars);
 
                     if (reception->sigil_file_path != NULL) {
                         free(reception->sigil_file_path);
@@ -722,6 +717,8 @@ void* sendFiles (void* arg) {
                     }*/
                 }
             }
+        } else {
+            pthread_mutex_unlock(&reception->mutex_sending_vars);
         }
     } while (!flag);
     
@@ -737,6 +734,10 @@ void timerFlag () {
 void unexpectedExit () {
     sendDisconection(maester);
     freeBuffers();
+
+    if (fd_client == -1) {
+        close(fd_client);
+    }
 
     signal(SIGINT, SIG_DFL);
     raise(SIGINT);
