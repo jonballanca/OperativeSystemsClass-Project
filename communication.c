@@ -477,11 +477,7 @@ int checkDestinationRequest (char protocol_string[PROTOCOL_SIZE], Protocol proto
     convertToCapitalLetters(upper_case_one);
     convertToCapitalLetters(upper_case_two);
 
-    if (!strcmp(upper_case_one, upper_case_two)) {
-        // El destino es este maester
-        //commAckFile(protocol_send, *maester, destination_name, "OK");
-        //sendProtocol(ip, port, protocol_send);
-    } else {
+    if (strcmp(upper_case_one, upper_case_two)) {
         // El destino no es este maester
         if (protocol.type == ALLIANCE_REQUEST_TYPE) {
             getWordFromProtocol(protocol.data, SIGIL_FILESIZE_WORD, &buffer);
@@ -501,6 +497,10 @@ int checkDestinationRequest (char protocol_string[PROTOCOL_SIZE], Protocol proto
             (*reception)->hop_total_bytes = 0;
         }
     }
+
+    // Si no entra en el if, el destino es este maester, se envia el ACK adecuado desde el manageReception
+    // donde se controla todo. Aqui todo se asigna por el error que retorna, que luego decide como se controla
+    // todo fuera de esto.
 
     free(upper_case_one);
     free(upper_case_two);
