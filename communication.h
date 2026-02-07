@@ -113,7 +113,7 @@ void getRealmNameFromIp (char **realm_name, struct in_addr ip, int port, Maester
 
 void getIpAndPortFromRealm (Maester maester, char *realm_name, struct in_addr *ip, int *port);
 
-void prepareSendingFile (int *file_size, int *fd, ReceptionInfo *reception, Maester maester, int sending_type);
+void prepareSendingFile (int *file_size, int *fd, char *file_path, Maester maester);
 
 void manageReception (ReceptionInfo **reception, Protocol *protocol, Maester *maester, int flag, int fd_client);
 

@@ -671,7 +671,7 @@ void* receiveClients (void* arg) {
 }
 
 // Thread
-void* sendFiles (void* arg) {
+/*void* sendFiles (void* arg) {
     ReceptionInfo* reception = (ReceptionInfo*)arg;
     char protocol[PROTOCOL_SIZE];
     int flag = 0;
@@ -765,11 +765,6 @@ void* sendFiles (void* arg) {
                         free(reception->sigil_file_path);
                         reception->sigil_file_path = NULL;
                     }
-
-                    /*if (reception->trade_file_path != NULL) {
-                        free(reception->trade_file_path);
-                        reception->trade_file_path = NULL;
-                    }*/
                 }
             }
         } else {
@@ -778,7 +773,7 @@ void* sendFiles (void* arg) {
     } while (!flag);
     
     return NULL;
-}
+}*/
 
 // Alarm
 void timerFlag () {
@@ -879,7 +874,7 @@ int main (int argc, char **argv) {
     int i = 0;
 
     pthread_t reception_thread;
-    pthread_t sending_thread;
+    //pthread_t sending_thread;
     pthread_t envoy_thread;
     
     signal(SIGINT, unexpectedExit);
@@ -959,7 +954,7 @@ int main (int argc, char **argv) {
     pthread_create(&envoy_thread, NULL, readingEnvoy, &maester.num_envoys);
 
     pthread_create(&reception_thread, NULL, receiveClients, &reception);
-    pthread_create(&sending_thread, NULL, sendFiles, &reception);
+    //pthread_create(&sending_thread, NULL, sendFiles, &reception);
     
 
     exit_flag = 0;

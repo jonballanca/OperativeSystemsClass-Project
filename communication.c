@@ -878,19 +878,11 @@ void handleAckConfirmation (Protocol protocol, ReceptionInfo **reception) {
     word = NULL;
 }
 
-void prepareSendingFile (int *file_size, int *fd, ReceptionInfo *reception, Maester maester, int sending_type) {
+void prepareSendingFile (int *file_size, int *fd, char *file_path, Maester maester) {
     char *file_size_str = NULL;
 
-    if (sending_type == SENDING_INVENTORY) {
-        *fd = open(reception->inventory_file_name, O_RDONLY);
-        getFileSize(reception->inventory_file_name, &file_size_str);
-    } else if (sending_type == SENDING_SIGIL) {
-        *fd = open(reception->sigil_file_path, O_RDONLY);
-        getFileSize(reception->sigil_file_path, &file_size_str);
-    } else if (sending_type == SENDING_TRADE) {
-        *fd = open(reception->trade_file_path, O_RDONLY);
-        getFileSize(reception->trade_file_path, &file_size_str);
-    }
+    *fd = open(file_path, O_RDONLY);
+    getFileSize(file_path, &file_size_str);
     
     *file_size = atoi(file_size_str);
     free(file_size_str);

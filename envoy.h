@@ -38,7 +38,9 @@ int** child_to_parent = NULL;          //Falta liberar memoria
 typedef struct {
     uint8_t type;
     Maester maester;
+    Protocol protocol_struct;
     int fd_client;
+    char *file_path;
 } EnvoyProtocol;
 
 
