@@ -22,6 +22,7 @@
 #include "inventory.h"
 #include "communication.h"
 #include "protocols.h"
+#include "envoy.h"
 
 char *string_read;                  // El string que guarda lo que se lee desde la terminal
 char *buffer_global;                // El buffer que se utiliza para guardar lo que se escribe por pantalla
@@ -38,6 +39,8 @@ pthread_mutex_t terminal_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 int timer_flag;
 Maester maester;
+
+
 
 
 void freeBuffers () {
@@ -91,9 +94,8 @@ void freeBuffers () {
 /*Inventory requestAvailableProducts () {
     Inventory inventory;            // Inventario que se hardcodea para la Fase 1, la que es el trade
                                     // No se utiliza esta función al final.
-    */
-    /* Hardcode de dos productos para la Fase 1 */
-    /*
+    Hardcode de dos productos para la Fase 1
+    
     inventory.product_count = 2;
 
     inventory.products = (Product*)malloc(sizeof(Product) * inventory.product_count);
@@ -565,6 +567,57 @@ void exitMaester (Inventory* inventory) {
 }
 
 // Thread
+/*void* receiveClients (void* arg) {
+    ReceptionInfo* reception = (ReceptionInfo*) arg;
+    Protocol protocol_struct;
+    char protocol[PROTOCOL_SIZE];
+    char protocol_send[PROTOCOL_SIZE];
+    char ip_string[INET_ADDRSTRLEN];
+    int flag = 0;
+    int error = 0;
+
+    struct sockaddr_in client_addr;
+    socklen_t addrlen = sizeof(client_addr);
+
+    fd_socket = createSocket(maester.ip, maester.port);
+
+    if (fd_socket == -1) {
+        // imprimir algo
+        showText("Failed creating receiving socket.\n");
+        return NULL;
+    }
+
+    do {
+        fd_client = accept(fd_socket, &client_addr, &addrlen);
+        
+        inet_ntop(AF_INET, &client_addr.sin_addr, ip_string, INET_ADDRSTRLEN);
+
+        error = read(fd_client, protocol, PROTOCOL_SIZE);
+        
+        if (error <= 0) {
+            error = 0;
+            protocol_struct.type = NACK_TYPE;
+        } else {
+            error = 0;
+
+            protocol_struct = stringToProtocol(protocol);
+
+            error = checkDestinationRequest(protocol, protocol_struct, client_addr, &maester, &reception);
+        }
+
+        if (error != -1) {
+            manageReception(&reception, &protocol_struct, &maester, flag, fd_client);
+        }
+        
+        close(fd_client);
+        fd_client = -1;
+
+    } while (1);
+    
+    return NULL;
+}*/
+
+// Thread con select
 void* receiveClients (void* arg) {
     ReceptionInfo* reception = (ReceptionInfo*) arg;
     Protocol protocol_struct;
@@ -573,6 +626,8 @@ void* receiveClients (void* arg) {
     char ip_string[INET_ADDRSTRLEN];
     int flag = 0;
     int error = 0;
+
+    int activity = -1;
 
     struct sockaddr_in client_addr;
     socklen_t addrlen = sizeof(client_addr);
@@ -809,6 +864,8 @@ int switchOfCommands(ReceptionInfo *reception, Inventory inventory, int command_
     return exit_flag;
 }
 
+
+
 // Procedimiento principal
 int main (int argc, char **argv) {
     Inventory inventory;                // El inventario del maester
@@ -819,9 +876,11 @@ int main (int argc, char **argv) {
     int file_errors = 0;                // Flag que guarda si hay un error en cualquier o los dos ficheros
     int exit_flag = 0;                  // Flag que guarda si se tiene que salir de estar esperando a los comandos
     int command_index = 0;              // Guarda el comando como el index que representa baseado en el commands.h
+    int i = 0;
 
     pthread_t reception_thread;
     pthread_t sending_thread;
+    pthread_t envoy_thread;
     
     signal(SIGINT, unexpectedExit);
     signal(SIGALRM, timerFlag);
@@ -847,6 +906,57 @@ int main (int argc, char **argv) {
 
     showInitializedMaester(maester);
     initializeReception(&reception, inventory, argv[2]);
+    
+    //Inicialización de fd_set
+    FD_ZERO(&current_sockets);
+
+    // Inicialización de pipes
+    parent_to_child  = (int**)malloc(sizeof(int*)*maester.num_envoys);
+    child_to_parent = (int**)malloc(sizeof(int*)*maester.num_envoys);
+
+    for (i = 0; i < maester.num_envoys; i++) {
+        parent_to_child[i]  = (int*)malloc(sizeof(int)*2);
+        child_to_parent[i] = (int*)malloc(sizeof(int)*2); 
+    }
+
+    //Creación de envoys
+    for (i=0; i < maester.num_envoys; i++) {
+        if (pipe(parent_to_child[i]) != -1 && pipe(child_to_parent[i]) != -1) {
+            pid_t pid = fork();
+
+            switch (pid) {
+                case -1:
+                    printReset("Error en la creación del fork\n");
+                    break;
+                case 0: 
+                    //Proceso del hijo
+                    close(parent_to_child[i][1]); //Close write end
+                    close(child_to_parent[i][0]); //Close read end
+
+                    //Cuidado definir cuando acaba
+                    envoyMain(i);
+                    exit(0);
+                    break;
+                default: 
+                    //Proceso del padre
+                    close(parent_to_child[i][0]); //Close read end
+                    close(child_to_parent[i][1]); //Close write end
+
+                    //Añadir el pipe de lectura al fd_set
+                    FD_SET(child_to_parent[i][0], &current_sockets);
+
+                    break;
+            }
+
+
+        } else {
+            printReset("Error en la creación de los forks\n");
+        }
+        
+    }
+
+    //Crear thread para leer los mensajes de los hijos
+    pthread_create(&envoy_thread, NULL, readingEnvoy, &maester.num_envoys);
 
     pthread_create(&reception_thread, NULL, receiveClients, &reception);
     pthread_create(&sending_thread, NULL, sendFiles, &reception);
