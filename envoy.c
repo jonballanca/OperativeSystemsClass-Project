@@ -102,6 +102,9 @@ void envoyMain (int i) {
                     sendFile(envoy_protocol, &reception, SENDING_TRADE);
                 }
                 break;
+            case EXIT:
+                flag = 1;
+                break;
             default:
                 break;
         }
