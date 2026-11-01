@@ -1,5 +1,9 @@
 #include "envoy.h"
 
+fd_set current_sockets, ready_sockets;
+int** parent_to_child = NULL;
+int** child_to_parent = NULL;
+
 // Thread
 void* readingEnvoy (void* arg) {
     int num_pipes = *((int*)arg);
@@ -21,7 +25,7 @@ void* readingEnvoy (void* arg) {
         for (i = 0; i < num_pipes; i++) {
             if (FD_ISSET(child_to_parent[i][0], &ready_sockets)) {
                 
-                buffer = read_until(child_to_parent[i][0], '\0');
+                buffer = readUntil(child_to_parent[i][0], '\0');
                 //Hay que definir que envian los envoys
                 free(buffer);
             }

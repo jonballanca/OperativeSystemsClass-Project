@@ -30,9 +30,9 @@
 #define ALLIANCE 1
 #define TRADE 2
 
-fd_set current_sockets, ready_sockets;  //Falta liberar memoria
-int** parent_to_child = NULL;         //Falta liberar memoria
-int** child_to_parent = NULL;          //Falta liberar memoria
+extern fd_set current_sockets, ready_sockets;  //Falta liberar memoria
+extern int** parent_to_child;         //Falta liberar memoria
+extern int** child_to_parent;          //Falta liberar memoria
 
 //De momento para definir
 typedef struct {
