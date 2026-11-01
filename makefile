@@ -18,11 +18,14 @@ communication.o: communication.c communication.h
 printing.o: printing.c printing.h
 	gcc -c printing.c -Wall -Wextra
 
+envoy.o: envoy.c envoy.h
+	gcc -c envoy.c -Wall -Wextra
+
 maester.o: maester.c
 	gcc -c maester.c -Wall -Wextra
 
-SO_Project: config.o inventory.o commands.o protocols.o communication.o printing.o maester.o
-	gcc config.o inventory.o commands.o protocols.o communication.o printing.o maester.o -o SO_Project.exe
+SO_Project: config.o inventory.o commands.o protocols.o communication.o printing.o envoy.o maester.o
+	gcc config.o inventory.o commands.o protocols.o communication.o printing.o envoy.o maester.o -o SO_Project.exe -lpthread
 	
 clean:
 	rm -f *.exe *.o

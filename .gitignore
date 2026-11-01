@@ -17,4 +17,12 @@ obj/
 *.out
 
 # Debug
-*.dSYM/
+*.dSYM/._*
+
+# IDEs
+.idea/
+cmake-build-*/
+
+# Build output
+SO_Project.exe
+TEMP_*.txt
